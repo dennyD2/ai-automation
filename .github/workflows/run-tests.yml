@@ -20,7 +20,8 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pip install pandas openpyxl browser-use langchain-openai playwright
+          pip install --upgrade pip
+          pip install pandas openpyxl playwright browser-use langchain-openai langchain-core
           python -m playwright install chromium --with-deps
 
       - name: Run Test Suite
@@ -41,17 +42,16 @@ jobs:
                   print(f'Error reading sheet: {e}')
                   return
           
-              # Initialize LLM with a direct configuration
-              # DeepSeek is OpenAI-compatible, so this is the cleanest way
+              # Updated initialization for DeepSeek compatibility
               llm = ChatOpenAI(
                   model='deepseek-chat',
-                  base_url='https://api.deepseek.com',
+                  base_url='https://api.deepseek.com/v1',
                   api_key=os.getenv('DEEPSEEK_API_KEY')
               )
               
-              # If browser-use still complains about 'provider', we use a safer injection:
-              if not hasattr(llm, 'provider'):
-                  llm.__dict__['provider'] = 'openai'
+              # Use a safer method to set the provider attribute
+              # This avoids Pydantic validation while satisfying browser-use requirements
+              setattr(llm, 'provider', 'openai')
               
               for index, row in df.iterrows():
                   instruction = str(row.iloc[0])
@@ -60,7 +60,8 @@ jobs:
                       
                   print(f'\n--- Running Test Case {index + 1}: {instruction} ---')
                   try:
-                      # browser-use Agent needs the LLM to support ainvoke
+                      # browser-use expects 'ainvoke', which newer LangChain versions 
+                      # provide via the BaseChatModel inheritance. 
                       agent = Agent(task=instruction, llm=llm)
                       await agent.run()
                   except Exception as e:
