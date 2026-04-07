@@ -44,26 +44,8 @@ async def extract_ui_elements(page):
 
 
 # ✅ STEP 2 — AI analyzes UI
-def analyze_ui(elements):
-    prompt = f"""
-You are analyzing a login page UI.
-
-Elements:
-{elements}
-
-Identify:
-- email input field
-- password input field
-- login button
-
-Return ONLY JSON:
-
-{{
-  "email": "selector",
-  "password": "selector",
-  "button": "selector"
-}}
-"""
+login_01	Verify login with empty email and password fields	Error message should display: "Please enter a correct email."
+login_02	Verify login with invalid email format (without @)	Error message should display: "Please enter a correct email."
 
     response = llm.invoke(prompt)
     return extract_json(response.content)
