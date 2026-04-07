@@ -1,116 +1,135 @@
 import asyncio
 import os
 import pandas as pd
-from browser_use import Agent
+from playwright.async_api import async_playwright
 from langchain_openai import ChatOpenAI
 
 
-# ✅ Compatibility wrapper (FINAL stable version)
-class AsyncCompatibleLLM:
-    def __init__(self, llm):
-        self.llm = llm
-        self.provider = "openai"
-        self.model = getattr(llm, "model", "deepseek-chat")
-        self.model_name = getattr(llm, "model_name", self.model)
+BASE_URL = "https://your-login-page.com"  # 🔴 CHANGE THIS
 
-    async def ainvoke(self, *args, **kwargs):
-        return self.llm.invoke(*args, **kwargs)
 
-    def invoke(self, *args, **kwargs):
-        return self.llm.invoke(*args, **kwargs)
+# ✅ LLM setup (DeepSeek works fine here)
+llm = ChatOpenAI(
+    model="deepseek-chat",
+    base_url="https://api.deepseek.com/v1",
+    api_key=os.getenv("DEEPSEEK_API_KEY"),
+    temperature=0
+)
+
+
+async def get_steps_from_llm(description):
+    prompt = f"""
+Convert this test case into clear browser steps.
+
+Test case:
+{description}
+
+Return steps like:
+1. Open login page
+2. Enter email ...
+3. Click login
+"""
+
+    response = llm.invoke(prompt)
+    return response.content
+
+
+async def validate_result(description, expectation, page_content):
+    prompt = f"""
+You are a QA tester.
+
+Test case:
+{description}
+
+Expected result:
+{expectation}
+
+Actual page content:
+{page_content[:2000]}
+
+Did the test PASS or FAIL?
+
+Return:
+PASS or FAIL with reason.
+"""
+
+    response = llm.invoke(prompt)
+    return response.content
+
+
+async def run_test(page, description):
+    steps = await get_steps_from_llm(description)
+
+    print("\n🧠 Steps generated:\n", steps)
+
+    # 🔥 VERY SIMPLE execution logic (can improve later)
+    if "empty" in description.lower():
+        await page.fill('input[type="email"]', "")
+        await page.fill('input[type="password"]', "")
+    elif "valid" in description.lower():
+        await page.fill('input[type="email"]', "test@example.com")
+        await page.fill('input[type="password"]', "123456")
+
+    await page.click('button[type="submit"]')
+
+    await page.wait_for_timeout(2000)
+
+    content = await page.content()
+    return content
 
 
 async def run_suite():
-    try:
-        df = pd.read_excel(
-            "Trajector Test cases.xlsx",
-            sheet_name="Login",
-            engine="openpyxl"
-        )
-    except Exception as e:
-        print(f"❌ Error reading Excel: {e}")
-        return
-
-    # 🔥 Convert full sheet into readable test cases
-    test_cases = ""
-
-    for _, row in df.iterrows():
-        test_cases += f"""
-Test Case ID: {row['Test case ID']}
-Description: {row['Description']}
-Expected Result: {row['Expectation']}
----
-"""
-
-    BASE_URL = "https://your-login-page.com"  # ⚠️ CHANGE THIS
-
-    # ✅ PHASE 1: EXECUTION TASK (no JSON forcing)
-    task = f"""
-You are an AI QA tester.
-
-Open the website: {BASE_URL}
-
-Execute the following test cases one by one.
-
-For each test case:
-- Perform the described steps
-- Observe the result carefully
-- Do NOT assume success
-
-After executing all test cases, summarize what happened.
-
-Test Cases:
-{test_cases}
-"""
-
-    base_llm = ChatOpenAI(
-        model="deepseek-chat",
-        base_url="https://api.deepseek.com/v1",
-        api_key=os.getenv("DEEPSEEK_API_KEY"),
-        temperature=0
+    df = pd.read_excel(
+        "Trajector Test cases.xlsx",
+        sheet_name="Login",
+        engine="openpyxl"
     )
 
-    llm = AsyncCompatibleLLM(base_llm)
+    results = []
 
-    print("🚀 Running full test suite...\n")
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page()
 
-    try:
-        agent = Agent(task=task, llm=llm)
+        for _, row in df.iterrows():
+            test_id = row["Test case ID"]
+            description = row["Description"]
+            expectation = row["Expectation"]
 
-        execution_result = await agent.run()
+            print(f"\n🚀 Running {test_id}")
 
-        print("\n🧾 RAW EXECUTION OUTPUT:\n")
-        print(execution_result)
+            try:
+                await page.goto(BASE_URL)
 
-    except Exception as e:
-        print(f"❌ Agent execution failed: {e}")
-        return
+                content = await run_test(page, description)
 
-    # ✅ PHASE 2: REPORT GENERATION (LLM only, no browser)
-    print("\n📊 Generating final report...\n")
+                result = await validate_result(
+                    description,
+                    expectation,
+                    content
+                )
 
-    report_prompt = f"""
-You are a QA expert.
+                results.append({
+                    "id": test_id,
+                    "result": result
+                })
 
-Based on the execution output below, generate a structured report.
+                print(f"✅ {test_id}: {result}")
 
-Format:
-Test Case ID | Result (PASS/FAIL) | Reason
+            except Exception as e:
+                print(f"❌ {test_id} failed: {e}")
+                results.append({
+                    "id": test_id,
+                    "result": f"ERROR: {e}"
+                })
 
-Be strict. If result is unclear, mark FAIL.
+        await browser.close()
 
-Execution Output:
-{execution_result}
-"""
+    # 📊 Final report
+    print("\n📊 FINAL REPORT:\n")
 
-    try:
-        report = base_llm.invoke(report_prompt)
-
-        print("\n✅ FINAL TEST REPORT:\n")
-        print(report.content if hasattr(report, "content") else report)
-
-    except Exception as e:
-        print(f"❌ Report generation failed: {e}")
+    for r in results:
+        print(f"{r['id']} → {r['result']}")
 
 
 if __name__ == "__main__":
