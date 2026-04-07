@@ -41,16 +41,17 @@ jobs:
                   print(f'Error reading sheet: {e}')
                   return
           
+              # Initialize LLM with a direct configuration
+              # DeepSeek is OpenAI-compatible, so this is the cleanest way
               llm = ChatOpenAI(
                   model='deepseek-chat',
-                  openai_api_base='https://api.deepseek.com',
+                  base_url='https://api.deepseek.com',
                   api_key=os.getenv('DEEPSEEK_API_KEY')
               )
               
-              # ONLY USE THIS LINE: It sneaks the attribute past Pydantic
-              object.__setattr__(llm, 'provider', 'openai')
-              
-              # --- REMOVED THE CRASHING LINE (llm.provider = 'openai') FROM HERE ---
+              # If browser-use still complains about 'provider', we use a safer injection:
+              if not hasattr(llm, 'provider'):
+                  llm.__dict__['provider'] = 'openai'
               
               for index, row in df.iterrows():
                   instruction = str(row.iloc[0])
@@ -59,6 +60,7 @@ jobs:
                       
                   print(f'\n--- Running Test Case {index + 1}: {instruction} ---')
                   try:
+                      # browser-use Agent needs the LLM to support ainvoke
                       agent = Agent(task=instruction, llm=llm)
                       await agent.run()
                   except Exception as e:
