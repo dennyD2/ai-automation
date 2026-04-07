@@ -22,9 +22,15 @@ jobs:
         run: |
           pip install --upgrade pip
           
-          # ✅ Let pip resolve compatible versions automatically
-          pip install pandas openpyxl playwright browser-use
-
+          # ✅ Let browser-use resolve its deps
+          pip install browser-use
+          
+          # ✅ Ensure OpenAI wrapper exists (no version pin)
+          pip install langchain-openai
+          
+          # Other deps
+          pip install pandas openpyxl playwright
+        
           python -m playwright install chromium --with-deps
 
       - name: Run Test Suite
