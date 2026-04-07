@@ -12,11 +12,11 @@ class AsyncCompatibleLLM:
         self.model = getattr(llm, "model", "deepseek-chat")
         self.model_name = getattr(llm, "model_name", self.model)
 
-    async def ainvoke(self, input, **kwargs):  # ✅ accept anything
-        return self.llm.invoke(input)
+    async def ainvoke(self, *args, **kwargs):  # ✅ accepts anything
+        return self.llm.invoke(*args, **kwargs)
 
-    def invoke(self, input, **kwargs):  # ✅ accept anything
-        return self.llm.invoke(input)
+    def invoke(self, *args, **kwargs):  # ✅ accepts anything
+        return self.llm.invoke(*args, **kwargs)
 
 
 async def run_suite():
