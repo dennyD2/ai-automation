@@ -3,7 +3,7 @@ name: AI No-Code Test Runner
 on:
   push:
     branches: [ main ]
-  workflow_dispatch: 
+  workflow_dispatch:
 
 jobs:
   browser-test:
@@ -21,53 +21,17 @@ jobs:
       - name: Install Dependencies
         run: |
           pip install --upgrade pip
-          # Letting pip find the best compatible versions
-          pip install pandas openpyxl playwright browser-use langchain-openai
+          
+          # ✅ Stable compatible versions (VERY IMPORTANT)
+          pip install pandas openpyxl playwright \
+          browser-use==0.1.32 \
+          langchain==0.1.20 \
+          langchain-openai==0.0.8 \
+          openai==1.30.1
+
           python -m playwright install chromium --with-deps
 
       - name: Run Test Suite
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-        run: |
-          python -c "
-          import asyncio
-          import os
-          import pandas as pd
-          from browser_use import Agent
-          from langchain_openai import ChatOpenAI
-          
-          async def run_suite():
-              try:
-                  df = pd.read_excel('Trajector Test cases.xlsx', sheet_name='Login', engine='openpyxl')
-              except Exception as e:
-                  print(f'Error reading Excel: {e}')
-                  return
-          
-              # Using the version 0.3.x compatible initialization
-              llm = ChatOpenAI(
-                  model='deepseek-chat',
-                  base_url='https://api.deepseek.com/v1',
-                  api_key=os.getenv('DEEPSEEK_API_KEY')
-              )
-              
-              # Direct dictionary injection to bypass Pydantic 'no field' error
-              # This satisfies browser-use without triggering Pydantic validation
-              llm.__dict__['provider'] = 'openai'
-              
-              for index, row in df.iterrows():
-                  instruction = str(row.iloc[0])
-                  if not instruction or instruction.strip().lower() in ['nan', 'none', '']:
-                      continue
-                      
-                  print(f'\n--- Running Test Case {index + 1}: {instruction} ---')
-                  
-                  try:
-                      # With langchain-openai 0.3.1+, ainvoke is natively supported
-                      agent = Agent(task=instruction, llm=llm)
-                      await agent.run()
-                  except Exception as e:
-                      print(f'Test Case {index + 1} Failed: {str(e)}')
-          
-          if __name__ == '__main__':
-              asyncio.run(run_suite())
-          "
+        run: python run_tests.py
