@@ -42,16 +42,16 @@ jobs:
                   print(f'Error reading sheet: {e}')
                   return
           
-              # Updated initialization for DeepSeek compatibility
+              # 1. Initialize the LLM
               llm = ChatOpenAI(
                   model='deepseek-chat',
                   base_url='https://api.deepseek.com/v1',
                   api_key=os.getenv('DEEPSEEK_API_KEY')
               )
               
-              # Use a safer method to set the provider attribute
-              # This avoids Pydantic validation while satisfying browser-use requirements
-              setattr(llm, 'provider', 'openai')
+              # 2. THE SECRET SAUCE: Direct dictionary injection
+              # This bypasses Pydantic's __setattr__ validation entirely.
+              llm.__dict__['provider'] = 'openai'
               
               for index, row in df.iterrows():
                   instruction = str(row.iloc[0])
@@ -60,12 +60,11 @@ jobs:
                       
                   print(f'\n--- Running Test Case {index + 1}: {instruction} ---')
                   try:
-                      # browser-use expects 'ainvoke', which newer LangChain versions 
-                      # provide via the BaseChatModel inheritance. 
                       agent = Agent(task=instruction, llm=llm)
                       await agent.run()
                   except Exception as e:
-                      print(f'Test Case {index + 1} Failed: {e}')
+                      # Logging the full error to help you debug
+                      print(f'Test Case {index + 1} Failed: {str(e)}')
           
           if __name__ == '__main__':
               asyncio.run(run_suite())
