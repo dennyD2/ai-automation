@@ -1,36 +1,40 @@
-- name: Execute Tests from Excel
-        env:
-          OPENAI_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          OPENAI_BASE_URL: "https://api.deepseek.com/v1"
+name: AI No-Code Test Runner
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  browser-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
         run: |
-          python -c "
-          import asyncio
-          import pandas as pd
-          # FIXED IMPORT: We use the browser_use version of ChatOpenAI
-          from browser_use import Agent, ChatOpenAI
+          pip install --upgrade pip
+          
+          # ✅ Let browser-use manage its own compatible deps
+          pip install browser-use
+          
+          # ✅ Ensure OpenAI-compatible wrapper is available
+          pip install langchain-openai
+          
+          # Other required libs
+          pip install pandas openpyxl playwright
 
-          async def run_suite():
-              try:
-                  df = pd.read_excel('Trajector Test cases.xlsx', sheet_name='Login', engine='openpyxl')
-              except Exception as e:
-                  print(f'Error reading sheet: {e}')
-                  return
+          # Install browser
+          python -m playwright install chromium --with-deps
 
-              # FIXED INITIALIZATION: DeepSeek uses the standard ChatOpenAI wrapper here
-              llm = ChatOpenAI(model='deepseek-chat')
-              
-              for index, row in df.iterrows():
-                  instruction = str(row.iloc[0])
-                  if not instruction or instruction.strip().lower() == 'nan':
-                      continue
-                      
-                  print(f'🚀 Running Test Case {index + 1}: {instruction}')
-                  try:
-                      agent = Agent(task=instruction, llm=llm)
-                      await agent.run()
-                  except Exception as e:
-                      print(f'❌ Test Case {index + 1} Failed: {e}')
-
-          if __name__ == '__main__':
-              asyncio.run(run_suite())
-          "
+      - name: Run Test Suite
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: python run_tests.py
