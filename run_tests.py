@@ -4,24 +4,26 @@ import json
 import re
 import pandas as pd
 from playwright.async_api import async_playwright
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 # 🔴 Base URL
 BASE_URL = "https://trajector.bling-ai.com/trajector/login/"
 
-# ✅ LLM setup
-llm = ChatOpenAI(
-    model="deepseek-chat",
-    base_url="https://api.deepseek.com/v1",
-    api_key=os.getenv("DEEPSEEK_API_KEY"),
+# ✅ Gemini LLM setup
+llm = ChatGoogleGenerativeAI(
+    model="gemini-1.5-flash",
+    google_api_key=os.getenv("GEMINI_API_KEY"),
     temperature=0
 )
 
 
-# 🔧 Extract JSON safely
+# 🔧 Robust JSON extraction
 def extract_json(text):
     try:
-        return json.loads(re.search(r"\{.*\}", text, re.DOTALL).group())
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        if match:
+            return json.loads(match.group())
+        return {}
     except:
         return {}
 
@@ -65,7 +67,7 @@ Return ONLY JSON:
     return extract_json(response.content)
 
 
-# ✅ STEP 3 — AI infers actions from description
+# ✅ STEP 3 — Perform action (AI-inferred)
 async def perform_login(page, selectors, description):
     email_selector = selectors.get("email")
     password_selector = selectors.get("password")
@@ -76,7 +78,6 @@ async def perform_login(page, selectors, description):
     email_value = ""
     password_value = ""
 
-    # Minimal intelligence (not overfitted)
     if "valid" in description.lower():
         email_value = "test@example.com"
         password_value = "123456"
@@ -93,7 +94,6 @@ async def perform_login(page, selectors, description):
     except:
         print("⚠️ Password fill failed")
 
-    # 🔥 AI-inferred action (important)
     try:
         if button_selector:
             await page.click(button_selector)
@@ -119,14 +119,10 @@ Actual UI text:
 
 Instructions:
 
-1. Use the description to infer what action happened.
-   (Example: login → assume user clicked login button)
-
-2. ONLY validate based on expected result.
-
-3. Do NOT evaluate UX improvements or extra issues.
-
-4. Do NOT overthink.
+1. Use description to infer user action (e.g., login → assume click happened)
+2. ONLY validate based on expected result
+3. Do NOT evaluate UX improvements
+4. Do NOT overthink
 
 Rules:
 - If expected message is present → PASS
@@ -162,7 +158,7 @@ async def run_suite():
 
         print("🌐 Page title:", await page.title())
 
-        # 🔥 UI-first understanding
+        # 🔥 UI-first analysis
         elements = await extract_ui_elements(page)
         selectors = analyze_ui(elements)
 
