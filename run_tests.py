@@ -5,12 +5,12 @@ from browser_use import Agent
 from langchain_openai import ChatOpenAI
 
 
-# ✅ FULL compatibility wrapper (final version)
 class AsyncCompatibleLLM:
     def __init__(self, llm):
         self.llm = llm
         self.provider = "openai"
         self.model = getattr(llm, "model", "deepseek-chat")
+        self.model_name = getattr(llm, "model_name", self.model)
 
     async def ainvoke(self, input, config=None):
         return self.llm.invoke(input)
@@ -20,46 +20,65 @@ class AsyncCompatibleLLM:
 
 
 async def run_suite():
-    try:
-        df = pd.read_excel(
-            "Trajector Test cases.xlsx",
-            sheet_name="Login",
-            engine="openpyxl"
-        )
-    except Exception as e:
-        print(f"❌ Error reading Excel: {e}")
-        return
-
-    # ✅ DeepSeek via OpenAI-compatible API
-    base_llm = ChatOpenAI(
-        model="deepseek-chat",
-        base_url="https://api.deepseek.com/v1",
-        api_key=os.getenv("DEEPSEEK_API_KEY"),
-        temperature=0
+    df = pd.read_excel(
+        "Trajector Test cases.xlsx",
+        sheet_name="Login",
+        engine="openpyxl"
     )
 
-    llm = AsyncCompatibleLLM(base_llm)
+    # 🔥 Convert entire sheet into structured test cases
+    test_cases = ""
 
-    for index, row in df.iterrows():
-        instruction = str(row.iloc[0])
+    for _, row in df.iterrows():
+        test_cases += f"""
+Test Case ID: {row['Test case ID']}
+Description: {row['Description']}
+Expected Result: {row['Expectation']}
+---
+"""
 
-        if not instruction or instruction.strip().lower() in ["nan", "none", ""]:
-            continue
+    BASE_URL = "https://your-login-page.com"  # ⚠️ CHANGE THIS
 
-        print(f"\n🚀 Running Test Case {index + 1}: {instruction}")
+    # 🔥 SINGLE MASTER PROMPT
+    task = f"""
+You are an expert QA automation tester.
 
-        try:
-            agent = Agent(
-                task=instruction,
-                llm=llm
-            )
+Open the website: {BASE_URL}
 
-            await agent.run()
+You are given a list of test cases.
 
-            print(f"✅ Test Case {index + 1} Passed")
+Execute ALL test cases one by one.
 
-        except Exception as e:
-            print(f"❌ Test Case {index + 1} Failed: {e}")
+For each test case:
+1. Perform the steps described
+2. Validate the expected result
+3. Decide PASS or FAIL
+
+Finally, generate a report in this format:
+
+Test Case ID | Result (PASS/FAIL) | Reason
+
+Test Cases:
+{test_cases}
+"""
+
+    llm = AsyncCompatibleLLM(
+        ChatOpenAI(
+            model="deepseek-chat",
+            base_url="https://api.deepseek.com/v1",
+            api_key=os.getenv("DEEPSEEK_API_KEY"),
+            temperature=0
+        )
+    )
+
+    print("🚀 Running full test suite...")
+
+    agent = Agent(task=task, llm=llm)
+
+    result = await agent.run()
+
+    print("\n📊 FINAL TEST REPORT:\n")
+    print(result)
 
 
 if __name__ == "__main__":
