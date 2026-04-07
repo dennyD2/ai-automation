@@ -5,17 +5,19 @@ from browser_use import Agent
 from langchain_openai import ChatOpenAI
 
 
-# ✅ Wrapper to fix async compatibility (THIS is key)
+# ✅ FULL compatibility wrapper (final version)
 class AsyncCompatibleLLM:
     def __init__(self, llm):
         self.llm = llm
-        self.provider = "openai"  # ✅ REQUIRED by browser-use
+        self.provider = "openai"
+        self.model = getattr(llm, "model", "deepseek-chat")
 
     async def ainvoke(self, input, config=None):
         return self.llm.invoke(input)
 
     def invoke(self, input, config=None):
         return self.llm.invoke(input)
+
 
 async def run_suite():
     try:
