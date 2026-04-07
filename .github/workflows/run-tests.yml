@@ -44,12 +44,15 @@ jobs:
                   print(f'Error reading sheet: {e}')
                   return
           
-              # Initialize LLM with DeepSeek Base URL
+            # Initialize LLM
               llm = ChatOpenAI(
                   model='deepseek-chat',
                   openai_api_base='https://api.deepseek.com',
                   api_key=os.getenv('DEEPSEEK_API_KEY')
               )
+              
+              # UPDATED FIX: Bypasses Pydantic validation
+              object.__setattr__(llm, 'provider', 'openai')
               
               # CRITICAL FIX: Manually inject the provider attribute
               # This prevents the AttributeError: 'ChatOpenAI' object has no attribute 'provider'
