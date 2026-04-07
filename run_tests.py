@@ -1,16 +1,15 @@
 import asyncio
 import os
 import json
+import re
 import pandas as pd
 from playwright.async_api import async_playwright
 from langchain_openai import ChatOpenAI
 
-
 # 🔴 CHANGE THIS
-BASE_URL = "https://trajector.bling-ai.com/trajector/login/"
+BASE_URL = "https://trajectory.bling-ai.com/trajectory/login"
 
-
-# ✅ LLM setup (DeepSeek)
+# ✅ LLM setup
 llm = ChatOpenAI(
     model="deepseek-chat",
     base_url="https://api.deepseek.com/v1",
@@ -19,21 +18,43 @@ llm = ChatOpenAI(
 )
 
 
-# ✅ Step 1: AI extracts selectors from DOM
-async def get_selectors_from_llm(description, html):
+# 🔧 Extract JSON safely
+def extract_json(text):
+    try:
+        return json.loads(re.search(r"\{.*\}", text, re.DOTALL).group())
+    except:
+        return {}
+
+
+# ✅ STEP 1 — Extract UI elements (structured, not raw HTML)
+async def extract_ui_elements(page):
+    elements = await page.evaluate("""
+    () => {
+        return Array.from(document.querySelectorAll('input, button, a')).map(el => ({
+            tag: el.tagName,
+            text: el.innerText,
+            placeholder: el.placeholder,
+            id: el.id,
+            name: el.name,
+            type: el.type
+        }));
+    }
+    """)
+    return elements
+
+
+# ✅ STEP 2 — AI analyzes UI
+def analyze_ui(elements):
     prompt = f"""
-You are a QA automation expert.
+You are analyzing a login page UI.
 
-Here is the webpage HTML (trimmed):
-{html[:4000]}
+Elements:
+{elements}
 
-Test case:
-{description}
-
-Find the correct selectors for:
-- Email input field
-- Password input field
-- Login button
+Identify:
+- email input field
+- password input field
+- login button
 
 Return ONLY JSON:
 
@@ -45,98 +66,90 @@ Return ONLY JSON:
 """
 
     response = llm.invoke(prompt)
-
-    try:
-        return json.loads(response.content)
-    except:
-        print("⚠️ Failed to parse selectors from AI")
-        return {}
+    return extract_json(response.content)
 
 
-# ✅ Step 2: AI converts description → steps (optional debug)
-async def get_steps_from_llm(description):
+# ✅ STEP 3 — Execute actions
+async def perform_login(page, selectors, description):
+    email_selector = selectors.get("email")
+    password_selector = selectors.get("password")
+    button_selector = selectors.get("button")
+
+    print("🤖 Using selectors:", selectors)
+
+    # Basic logic from description
+    email_value = ""
+    password_value = ""
+
+    if "valid" in description.lower():
+        email_value = "test@example.com"
+        password_value = "123456"
+
+    if email_selector:
+        try:
+            await page.fill(email_selector, email_value)
+        except:
+            print("⚠️ Email fill failed")
+
+    if password_selector:
+        try:
+            await page.fill(password_selector, password_value)
+        except:
+            print("⚠️ Password fill failed")
+
+    if button_selector:
+        try:
+            await page.click(button_selector)
+        except:
+            print("⚠️ Button click failed")
+
+    await page.wait_for_timeout(2000)
+
+
+# ✅ STEP 4 — Validate result
+def validate_result(description, expectation, text):
     prompt = f"""
-Convert this test case into browser steps:
-
-{description}
-"""
-    response = llm.invoke(prompt)
-    return response.content
-
-
-# ✅ Step 3: Validate result using AI
-async def validate_result(description, expectation, html):
-    prompt = f"""
-You are a QA tester.
-
 Test case:
 {description}
 
 Expected:
 {expectation}
 
-Actual page content:
-{html[:2000]}
+Actual UI text:
+{text}
 
-Did it PASS or FAIL? Give reason.
+Is this PASS or FAIL? Give reason.
 """
     response = llm.invoke(prompt)
     return response.content
 
 
-# ✅ Step 4: Execute test
-async def run_test(page, description):
-    html = await page.content()
-
-    selectors = await get_selectors_from_llm(description, html)
-    print("🤖 AI selectors:", selectors)
-
-    email_selector = selectors.get("email", 'input[type="email"]')
-    password_selector = selectors.get("password", 'input[type="password"]')
-    button_selector = selectors.get("button", 'button')
-
-    # Fill inputs safely
-    try:
-        await page.fill(email_selector, "test@example.com")
-        print(f"✅ Filled email using {email_selector}")
-    except:
-        print("⚠️ Email field not found")
-
-    try:
-        await page.fill(password_selector, "123456")
-        print(f"✅ Filled password using {password_selector}")
-    except:
-        print("⚠️ Password field not found")
-
-    # Click button safely
-    try:
-        await page.click(button_selector)
-        print(f"✅ Clicked button using {button_selector}")
-    except:
-        print("⚠️ Login button not found")
-
-    await page.wait_for_timeout(2000)
-
-    return await page.content()
-
-
-# ✅ Main runner
+# ✅ MAIN
 async def run_suite():
-    try:
-        df = pd.read_excel(
-            "Trajector Test cases.xlsx",
-            sheet_name="Login",
-            engine="openpyxl"
-        )
-    except Exception as e:
-        print(f"❌ Excel read error: {e}")
-        return
+    df = pd.read_excel(
+        "Trajector Test cases.xlsx",
+        sheet_name="Login",
+        engine="openpyxl"
+    )
 
     results = []
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
+
+        # 🔥 Load page
+        await page.goto(BASE_URL, wait_until="domcontentloaded")
+        await page.wait_for_timeout(3000)
+
+        print("🌐 Page title:", await page.title())
+
+        # 🔥 UI-first analysis
+        elements = await extract_ui_elements(page)
+        print("🧩 Extracted UI elements")
+
+        selectors = analyze_ui(elements)
+        print("🧠 AI UI understanding:", selectors)
 
         for _, row in df.iterrows():
             test_id = row["Test case ID"]
@@ -147,18 +160,20 @@ async def run_suite():
 
             try:
                 await page.goto(BASE_URL)
-                await page.wait_for_load_state("networkidle")
+                await page.wait_for_timeout(2000)
 
-                steps = await get_steps_from_llm(description)
-                print("🧠 Steps:\n", steps)
+                await perform_login(page, selectors, description)
 
-                content = await run_test(page, description)
+                visible_text = await page.inner_text("body")
 
-                result = await validate_result(description, expectation, content)
-
-                results.append((test_id, result))
+                result = validate_result(
+                    description,
+                    expectation,
+                    visible_text
+                )
 
                 print(f"✅ {test_id}: {result}")
+                results.append((test_id, result))
 
             except Exception as e:
                 print(f"❌ {test_id} failed: {e}")
@@ -166,11 +181,9 @@ async def run_suite():
 
         await browser.close()
 
-    # 📊 Final report
     print("\n📊 FINAL REPORT\n")
-
-    for test_id, result in results:
-        print(f"{test_id} → {result}")
+    for r in results:
+        print(f"{r[0]} → {r[1]}")
 
 
 if __name__ == "__main__":
