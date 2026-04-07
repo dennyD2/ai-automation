@@ -20,9 +20,9 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pip install pandas openpyxl browser-use langchain-openai
-          # Install playwright browsers for browser-use to function
-          playwright install chromium
+          pip install pandas openpyxl browser-use langchain-openai playwright
+          # Use 'python -m' to ensure the runner finds the playwright executable
+          python -m playwright install chromium --with-deps
 
       - name: Run Test Suite
         env:
