@@ -1,4 +1,4 @@
-name: AI Test Runner (Playwright)
+name: AI UI-First Test Runner
 
 on:
   push:
@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Setup Python
@@ -18,13 +18,13 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: |
           pip install --upgrade pip
           pip install pandas openpyxl playwright langchain-openai
           python -m playwright install chromium --with-deps
 
-      - name: Run Tests
+      - name: Run tests
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: python run_tests.py
