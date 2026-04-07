@@ -9,13 +9,13 @@ from langchain_openai import ChatOpenAI
 class AsyncCompatibleLLM:
     def __init__(self, llm):
         self.llm = llm
+        self.provider = "openai"  # ✅ REQUIRED by browser-use
 
     async def ainvoke(self, input, config=None):
         return self.llm.invoke(input)
 
     def invoke(self, input, config=None):
         return self.llm.invoke(input)
-
 
 async def run_suite():
     try:
