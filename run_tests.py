@@ -4,20 +4,19 @@ import json
 import re
 import pandas as pd
 from playwright.async_api import async_playwright
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 
-# 🔴 Base URL
 BASE_URL = "https://trajector.bling-ai.com/trajector/login/"
 
-# ✅ Gemini LLM setup
-llm = ChatGoogleGenerativeAI(
-    model="gemini-1.5-flash",
-    google_api_key=os.getenv("GEMINI_API_KEY"),
+llm = ChatOpenAI(
+    model="deepseek-chat",
+    base_url="https://api.deepseek.com/v1",
+    api_key=os.getenv("DEEPSEEK_API_KEY"),
     temperature=0
 )
 
 
-# 🔧 Robust JSON extraction
+# 🔧 JSON extractor
 def extract_json(text):
     try:
         match = re.search(r"\{.*\}", text, re.DOTALL)
@@ -28,114 +27,99 @@ def extract_json(text):
         return {}
 
 
-# ✅ STEP 1 — Extract UI elements
+# ✅ STEP 1 — Minimal UI extraction
 async def extract_ui_elements(page):
     return await page.evaluate("""
-    () => Array.from(document.querySelectorAll('input, button, a')).map(el => ({
-        tag: el.tagName,
-        text: el.innerText,
-        placeholder: el.placeholder,
-        id: el.id,
-        name: el.name,
-        type: el.type
-    }))
+    () => {
+        return {
+            inputs: Array.from(document.querySelectorAll('input')).map(e => ({
+                placeholder: e.placeholder,
+                id: e.id,
+                name: e.name,
+                type: e.type
+            })),
+            buttons: Array.from(document.querySelectorAll('button')).map(e => ({
+                text: e.innerText,
+                id: e.id
+            }))
+        }
+    }
     """)
 
 
-# ✅ STEP 2 — AI understands UI
-def analyze_ui(elements):
+# ✅ STEP 2 — SIMPLE AI (no overthinking)
+def analyze_ui(ui):
     prompt = f"""
-You are analyzing a login page UI.
+Find selectors.
 
-Elements:
-{elements}
+UI:
+{ui}
 
-Identify:
-- email input field
-- password input field
-- login button
-
-Return ONLY JSON:
+Return JSON only:
 
 {{
-  "email": "selector",
-  "password": "selector",
-  "button": "selector"
+ "email": "...",
+ "password": "...",
+ "button": "..."
 }}
 """
-    response = llm.invoke(prompt)
-    return extract_json(response.content)
+    res = llm.invoke(prompt)
+    return extract_json(res.content)
 
 
-# ✅ STEP 3 — Perform action (AI-inferred)
+# ✅ STEP 3 — ACTION (mostly deterministic)
 async def perform_login(page, selectors, description):
-    email_selector = selectors.get("email")
-    password_selector = selectors.get("password")
-    button_selector = selectors.get("button")
+    email = selectors.get("email")
+    password = selectors.get("password")
+    button = selectors.get("button")
 
-    print("🤖 Using selectors:", selectors)
-
-    email_value = ""
-    password_value = ""
+    email_val = ""
+    password_val = ""
 
     if "valid" in description.lower():
-        email_value = "test@example.com"
-        password_value = "123456"
+        email_val = "test@example.com"
+        password_val = "123456"
 
     try:
-        if email_selector:
-            await page.fill(email_selector, email_value)
+        if email:
+            await page.fill(email, email_val)
     except:
-        print("⚠️ Email fill failed")
+        print("⚠️ email fail")
 
     try:
-        if password_selector:
-            await page.fill(password_selector, password_value)
+        if password:
+            await page.fill(password, password_val)
     except:
-        print("⚠️ Password fill failed")
+        print("⚠️ password fail")
 
     try:
-        if button_selector:
-            await page.click(button_selector)
+        if button:
+            await page.click(button)
     except:
-        print("⚠️ Button click failed")
+        print("⚠️ click fail")
 
     await page.wait_for_timeout(2000)
 
 
-# ✅ STEP 4 — CONTROLLED SMART VALIDATION
-def validate_result(description, expectation, text):
+# ✅ STEP 4 — SIMPLE VALIDATION (controlled)
+def validate_result(expectation, text):
     prompt = f"""
-You are a QA tester.
-
-Test case:
-{description}
-
-Expected result:
+Expected:
 {expectation}
 
-Actual UI text:
+Actual:
 {text}
-
-Instructions:
-
-1. Use description to infer user action (e.g., login → assume click happened)
-2. ONLY validate based on expected result
-3. Do NOT evaluate UX improvements
-4. Do NOT overthink
 
 Rules:
 - If expected message is present → PASS
-- If not present → FAIL
-- Allow small wording variation if meaning matches
+- Else → FAIL
 
 Return:
 
-Result: PASS or FAIL
-Reason: Short explanation strictly based on expectation
+PASS or FAIL
 """
-    response = llm.invoke(prompt)
-    return response.content
+    res = llm.invoke(prompt)
+    return res.content
 
 
 # ✅ MAIN
@@ -146,57 +130,33 @@ async def run_suite():
         engine="openpyxl"
     )
 
-    results = []
-
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
 
-        # 🔥 Initial load
-        await page.goto(BASE_URL, wait_until="domcontentloaded")
+        await page.goto(BASE_URL)
         await page.wait_for_timeout(3000)
 
-        print("🌐 Page title:", await page.title())
+        ui = await extract_ui_elements(page)
+        selectors = analyze_ui(ui)
 
-        # 🔥 UI-first analysis
-        elements = await extract_ui_elements(page)
-        selectors = analyze_ui(elements)
-
-        print("🧠 AI UI understanding:", selectors)
+        print("🤖 selectors:", selectors)
 
         for _, row in df.iterrows():
-            test_id = row["Test case ID"]
-            description = row["Description"]
-            expectation = row["Expectation"]
+            print(f"\n🚀 {row['Test case ID']}")
 
-            print(f"\n🚀 Running {test_id}")
+            await page.goto(BASE_URL)
+            await page.wait_for_timeout(2000)
 
-            try:
-                await page.goto(BASE_URL)
-                await page.wait_for_timeout(2000)
+            await perform_login(page, selectors, row["Description"])
 
-                await perform_login(page, selectors, description)
+            text = await page.inner_text("body")
 
-                visible_text = await page.inner_text("body")
+            result = validate_result(row["Expectation"], text)
 
-                result = validate_result(
-                    description,
-                    expectation,
-                    visible_text
-                )
-
-                print(f"✅ {test_id}: {result}")
-                results.append((test_id, result))
-
-            except Exception as e:
-                print(f"❌ {test_id} failed: {e}")
-                results.append((test_id, f"ERROR: {e}"))
+            print("👉", result)
 
         await browser.close()
-
-    print("\n📊 FINAL REPORT\n")
-    for r in results:
-        print(f"{r[0]} → {r[1]}")
 
 
 if __name__ == "__main__":
