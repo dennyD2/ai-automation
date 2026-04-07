@@ -5,6 +5,7 @@ from browser_use import Agent
 from langchain_openai import ChatOpenAI
 
 
+# ✅ Compatibility wrapper (FINAL stable version)
 class AsyncCompatibleLLM:
     def __init__(self, llm):
         self.llm = llm
@@ -12,21 +13,25 @@ class AsyncCompatibleLLM:
         self.model = getattr(llm, "model", "deepseek-chat")
         self.model_name = getattr(llm, "model_name", self.model)
 
-    async def ainvoke(self, *args, **kwargs):  # ✅ accepts anything
+    async def ainvoke(self, *args, **kwargs):
         return self.llm.invoke(*args, **kwargs)
 
-    def invoke(self, *args, **kwargs):  # ✅ accepts anything
+    def invoke(self, *args, **kwargs):
         return self.llm.invoke(*args, **kwargs)
 
 
 async def run_suite():
-    df = pd.read_excel(
-        "Trajector Test cases.xlsx",
-        sheet_name="Login",
-        engine="openpyxl"
-    )
+    try:
+        df = pd.read_excel(
+            "Trajector Test cases.xlsx",
+            sheet_name="Login",
+            engine="openpyxl"
+        )
+    except Exception as e:
+        print(f"❌ Error reading Excel: {e}")
+        return
 
-    # 🔥 Convert entire sheet into structured test cases
+    # 🔥 Convert full sheet into readable test cases
     test_cases = ""
 
     for _, row in df.iterrows():
@@ -39,56 +44,73 @@ Expected Result: {row['Expectation']}
 
     BASE_URL = "https://your-login-page.com"  # ⚠️ CHANGE THIS
 
-    # 🔥 SINGLE MASTER PROMPT
+    # ✅ PHASE 1: EXECUTION TASK (no JSON forcing)
     task = f"""
-You are an expert QA automation tester.
+You are an AI QA tester.
 
 Open the website: {BASE_URL}
 
-Execute ALL the following test cases.
+Execute the following test cases one by one.
 
-For EACH test case:
-1. Perform the steps
-2. Validate expected result
-3. Mark PASS or FAIL
+For each test case:
+- Perform the described steps
+- Observe the result carefully
+- Do NOT assume success
 
-IMPORTANT:
-Return ONLY a valid JSON object in this format:
-
-{{
-  "items": [
-    {{
-      "test_case_id": "string",
-      "result": "PASS or FAIL",
-      "reason": "short explanation"
-    }}
-  ]
-}}
-
-DO NOT return any extra text.
-DO NOT explain anything outside JSON.
+After executing all test cases, summarize what happened.
 
 Test Cases:
 {test_cases}
 """
 
-    llm = AsyncCompatibleLLM(
-        ChatOpenAI(
-            model="deepseek-chat",
-            base_url="https://api.deepseek.com/v1",
-            api_key=os.getenv("DEEPSEEK_API_KEY"),
-            temperature=0
-        )
+    base_llm = ChatOpenAI(
+        model="deepseek-chat",
+        base_url="https://api.deepseek.com/v1",
+        api_key=os.getenv("DEEPSEEK_API_KEY"),
+        temperature=0
     )
 
-    print("🚀 Running full test suite...")
+    llm = AsyncCompatibleLLM(base_llm)
 
-    agent = Agent(task=task, llm=llm)
+    print("🚀 Running full test suite...\n")
 
-    result = await agent.run()
+    try:
+        agent = Agent(task=task, llm=llm)
 
-    print("\n📊 FINAL TEST REPORT:\n")
-    print(result)
+        execution_result = await agent.run()
+
+        print("\n🧾 RAW EXECUTION OUTPUT:\n")
+        print(execution_result)
+
+    except Exception as e:
+        print(f"❌ Agent execution failed: {e}")
+        return
+
+    # ✅ PHASE 2: REPORT GENERATION (LLM only, no browser)
+    print("\n📊 Generating final report...\n")
+
+    report_prompt = f"""
+You are a QA expert.
+
+Based on the execution output below, generate a structured report.
+
+Format:
+Test Case ID | Result (PASS/FAIL) | Reason
+
+Be strict. If result is unclear, mark FAIL.
+
+Execution Output:
+{execution_result}
+"""
+
+    try:
+        report = base_llm.invoke(report_prompt)
+
+        print("\n✅ FINAL TEST REPORT:\n")
+        print(report.content if hasattr(report, "content") else report)
+
+    except Exception as e:
+        print(f"❌ Report generation failed: {e}")
 
 
 if __name__ == "__main__":
