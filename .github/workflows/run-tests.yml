@@ -1,6 +1,6 @@
 name: AI No-Code Test Runner
 on:
-  workflow_dispatch: # This adds the "Run" button in GitHub
+  workflow_dispatch:
 
 jobs:
   run-ai-tests:
@@ -16,8 +16,9 @@ jobs:
 
       - name: Install AI Agent & Playwright
         run: |
-          pip install browser-use langchain-openai pandas openpyxl
-          playwright install chromium --with-deps
+          pip install browser-use langchain-openai pandas openpyxl playwright
+          # FIX: We use 'python -m playwright' to ensure the command is found
+          python -m playwright install chromium --with-deps
 
       - name: Execute Tests from Excel
         env:
@@ -31,16 +32,12 @@ jobs:
           from langchain_openai import ChatOpenAI
 
           async def run_suite():
-              # Load your Excel file exactly as named in your screenshot
               df = pd.read_excel('Trajector Test cases.xlsx')
-              
-              # Initialize the DeepSeek Brain
               llm = ChatOpenAI(model='deepseek-chat')
               
               for index, row in df.iterrows():
-                  instruction = str(row.iloc[0]) # Reads the first column
+                  instruction = str(row.iloc[0])
                   print(f'--- Running Test Case {index + 1}: {instruction} ---')
-                  
                   agent = Agent(task=instruction, llm=llm)
                   await agent.run()
 
