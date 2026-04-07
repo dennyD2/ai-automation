@@ -5,7 +5,7 @@ from playwright.async_api import async_playwright
 from langchain_openai import ChatOpenAI
 
 
-BASE_URL = "https://your-login-page.com"  # 🔴 CHANGE THIS
+BASE_URL = "https://trajector.bling-ai.com/trajector/login/"  # 🔴 CHANGE THIS
 
 
 # ✅ LLM setup (DeepSeek works fine here)
