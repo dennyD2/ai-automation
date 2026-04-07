@@ -1,26 +1,4 @@
-name: AI No-Code Test Runner
-on:
-  workflow_dispatch:
-
-jobs:
-  run-ai-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install AI Agent & Playwright
-        run: |
-          pip install browser-use langchain-openai pandas openpyxl playwright
-          # FIX: We use 'python -m playwright' to ensure the command is found
-          python -m playwright install chromium --with-deps
-
-      - name: Execute Tests from Excel
+- name: Execute Tests from Excel
         env:
           OPENAI_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           OPENAI_BASE_URL: "https://api.deepseek.com/v1"
@@ -32,12 +10,24 @@ jobs:
           from langchain_openai import ChatOpenAI
 
           async def run_suite():
-              df = pd.read_excel('Trajector Test cases.xlsx')
+              try:
+                  # SPECIFY THE TAB: sheet_name='Login'
+                  df = pd.read_excel('Trajector Test cases.xlsx', sheet_name='Login', engine='openpyxl')
+              except Exception as e:
+                  print(f'Error: Could not find tab named Login. Details: {e}')
+                  return
+
               llm = ChatOpenAI(model='deepseek-chat')
               
               for index, row in df.iterrows():
+                  # Read the first column (your test instruction)
                   instruction = str(row.iloc[0])
-                  print(f'--- Running Test Case {index + 1}: {instruction} ---')
+                  
+                  # Skip if the row is empty or just says 'nan'
+                  if not instruction or instruction.strip().lower() == 'nan':
+                      continue
+                      
+                  print(f'--- [LOGIN TAB] Running Test Case {index + 1}: {instruction} ---')
                   agent = Agent(task=instruction, llm=llm)
                   await agent.run()
 
