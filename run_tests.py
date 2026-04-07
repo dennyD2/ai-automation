@@ -6,10 +6,8 @@ import pandas as pd
 from playwright.async_api import async_playwright
 from langchain_openai import ChatOpenAI
 
-# 🔴 CHANGE THIS
 BASE_URL = "https://trajector.bling-ai.com/trajector/login/"
 
-# ✅ LLM setup
 llm = ChatOpenAI(
     model="deepseek-chat",
     base_url="https://api.deepseek.com/v1",
@@ -18,7 +16,6 @@ llm = ChatOpenAI(
 )
 
 
-# 🔧 Extract JSON safely
 def extract_json(text):
     try:
         return json.loads(re.search(r"\{.*\}", text, re.DOTALL).group())
@@ -26,32 +23,46 @@ def extract_json(text):
         return {}
 
 
-# ✅ STEP 1 — Extract UI elements (structured, not raw HTML)
+# ✅ STEP 1 — Extract UI elements
 async def extract_ui_elements(page):
-    elements = await page.evaluate("""
-    () => {
-        return Array.from(document.querySelectorAll('input, button, a')).map(el => ({
-            tag: el.tagName,
-            text: el.innerText,
-            placeholder: el.placeholder,
-            id: el.id,
-            name: el.name,
-            type: el.type
-        }));
-    }
+    return await page.evaluate("""
+    () => Array.from(document.querySelectorAll('input, button, a')).map(el => ({
+        tag: el.tagName,
+        text: el.innerText,
+        placeholder: el.placeholder,
+        id: el.id,
+        name: el.name,
+        type: el.type
+    }))
     """)
-    return elements
 
 
-# ✅ STEP 2 — AI analyzes UI
-login_01	Verify login with empty email and password fields	Error message should display: "Please enter a correct email."
-login_02	Verify login with invalid email format (without @)	Error message should display: "Please enter a correct email."
+# ✅ STEP 2 — AI understands UI (FIXED)
+def analyze_ui(elements):
+    prompt = f"""
+You are analyzing a login page UI.
 
+Elements:
+{elements}
+
+Identify:
+- email input field
+- password input field
+- login button
+
+Return ONLY JSON:
+
+{{
+  "email": "selector",
+  "password": "selector",
+  "button": "selector"
+}}
+"""
     response = llm.invoke(prompt)
     return extract_json(response.content)
 
 
-# ✅ STEP 3 — Execute actions
+# ✅ STEP 3 — Execute intelligently
 async def perform_login(page, selectors, description):
     email_selector = selectors.get("email")
     password_selector = selectors.get("password")
@@ -59,38 +70,40 @@ async def perform_login(page, selectors, description):
 
     print("🤖 Using selectors:", selectors)
 
-    # Basic logic from description
     email_value = ""
     password_value = ""
 
+    # minimal logic (AI still controls validation)
     if "valid" in description.lower():
         email_value = "test@example.com"
         password_value = "123456"
 
-    if email_selector:
-        try:
+    try:
+        if email_selector:
             await page.fill(email_selector, email_value)
-        except:
-            print("⚠️ Email fill failed")
+    except:
+        print("⚠️ Email fill failed")
 
-    if password_selector:
-        try:
+    try:
+        if password_selector:
             await page.fill(password_selector, password_value)
-        except:
-            print("⚠️ Password fill failed")
+    except:
+        print("⚠️ Password fill failed")
 
-    if button_selector:
-        try:
+    try:
+        if button_selector:
             await page.click(button_selector)
-        except:
-            print("⚠️ Button click failed")
+    except:
+        print("⚠️ Button click failed")
 
     await page.wait_for_timeout(2000)
 
 
-# ✅ STEP 4 — Validate result
+# ✅ STEP 4 — SMART QA VALIDATION (IMPORTANT CHANGE)
 def validate_result(description, expectation, text):
     prompt = f"""
+You are a senior QA engineer.
+
 Test case:
 {description}
 
@@ -100,7 +113,22 @@ Expected:
 Actual UI text:
 {text}
 
-Is this PASS or FAIL? Give reason.
+Evaluate intelligently:
+
+- Do NOT rely on exact string match
+- Use reasoning and UX knowledge
+- Check if validation type is correct
+- Check if behavior makes logical sense
+
+Rules:
+- Same meaning → PASS
+- Wrong validation type → FAIL
+- UX issue → explain clearly
+
+Return:
+
+Result: PASS or FAIL
+Reason: Explanation like a QA engineer
 """
     response = llm.invoke(prompt)
     return response.content
@@ -120,17 +148,14 @@ async def run_suite():
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
 
-        # 🔥 Load page
         await page.goto(BASE_URL, wait_until="domcontentloaded")
         await page.wait_for_timeout(3000)
 
         print("🌐 Page title:", await page.title())
 
-        # 🔥 UI-first analysis
         elements = await extract_ui_elements(page)
-        print("🧩 Extracted UI elements")
-
         selectors = analyze_ui(elements)
+
         print("🧠 AI UI understanding:", selectors)
 
         for _, row in df.iterrows():
