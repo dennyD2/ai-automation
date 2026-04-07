@@ -45,18 +45,28 @@ You are an expert QA automation tester.
 
 Open the website: {BASE_URL}
 
-You are given a list of test cases.
+Execute ALL the following test cases.
 
-Execute ALL test cases one by one.
+For EACH test case:
+1. Perform the steps
+2. Validate expected result
+3. Mark PASS or FAIL
 
-For each test case:
-1. Perform the steps described
-2. Validate the expected result
-3. Decide PASS or FAIL
+IMPORTANT:
+Return ONLY a valid JSON object in this format:
 
-Finally, generate a report in this format:
+{{
+  "items": [
+    {{
+      "test_case_id": "string",
+      "result": "PASS or FAIL",
+      "reason": "short explanation"
+    }}
+  ]
+}}
 
-Test Case ID | Result (PASS/FAIL) | Reason
+DO NOT return any extra text.
+DO NOT explain anything outside JSON.
 
 Test Cases:
 {test_cases}
