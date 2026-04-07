@@ -7,7 +7,7 @@ from langchain_openai import ChatOpenAI
 
 
 # 🔴 CHANGE THIS
-BASE_URL = "https://your-login-page.com"
+BASE_URL = "https://trajector.bling-ai.com/trajector/login/"
 
 
 # ✅ LLM setup (DeepSeek)
