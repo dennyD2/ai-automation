@@ -1,4 +1,4 @@
-name: AI No-Code Test Runner
+name: AI Test Runner (Playwright)
 
 on:
   push:
@@ -6,14 +6,14 @@ on:
   workflow_dispatch:
 
 jobs:
-  browser-test:
+  test:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -21,20 +21,10 @@ jobs:
       - name: Install Dependencies
         run: |
           pip install --upgrade pip
-          
-          # ✅ Let browser-use manage its own compatible deps
-          pip install browser-use
-          
-          # ✅ Ensure OpenAI-compatible wrapper is available
-          pip install langchain-openai
-          
-          # Other required libs
-          pip install pandas openpyxl playwright
-
-          # Install browser
+          pip install pandas openpyxl playwright langchain-openai
           python -m playwright install chromium --with-deps
 
-      - name: Run Test Suite
+      - name: Run Tests
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: python run_tests.py
