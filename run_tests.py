@@ -7,7 +7,7 @@ from playwright.async_api import async_playwright
 from langchain_openai import ChatOpenAI
 
 # 🔴 CHANGE THIS
-BASE_URL = "https://trajectory.bling-ai.com/trajectory/login"
+BASE_URL = "https://trajector.bling-ai.com/trajector/login/"
 
 # ✅ LLM setup
 llm = ChatOpenAI(
