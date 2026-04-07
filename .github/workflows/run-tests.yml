@@ -1,39 +1,36 @@
-name: AI No-Code Test Runner
-
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
-
-jobs:
-  browser-test:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install Dependencies
-        run: |
-          pip install --upgrade pip
-          
-          # ✅ Let browser-use resolve its deps
-          pip install browser-use
-          
-          # ✅ Ensure OpenAI wrapper exists (no version pin)
-          pip install langchain-openai
-          
-          # Other deps
-          pip install pandas openpyxl playwright
-        
-          python -m playwright install chromium --with-deps
-
-      - name: Run Test Suite
+- name: Execute Tests from Excel
         env:
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-        run: python run_tests.py
+          OPENAI_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          OPENAI_BASE_URL: "https://api.deepseek.com/v1"
+        run: |
+          python -c "
+          import asyncio
+          import pandas as pd
+          # FIXED IMPORT: We use the browser_use version of ChatOpenAI
+          from browser_use import Agent, ChatOpenAI
+
+          async def run_suite():
+              try:
+                  df = pd.read_excel('Trajector Test cases.xlsx', sheet_name='Login', engine='openpyxl')
+              except Exception as e:
+                  print(f'Error reading sheet: {e}')
+                  return
+
+              # FIXED INITIALIZATION: DeepSeek uses the standard ChatOpenAI wrapper here
+              llm = ChatOpenAI(model='deepseek-chat')
+              
+              for index, row in df.iterrows():
+                  instruction = str(row.iloc[0])
+                  if not instruction or instruction.strip().lower() == 'nan':
+                      continue
+                      
+                  print(f'🚀 Running Test Case {index + 1}: {instruction}')
+                  try:
+                      agent = Agent(task=instruction, llm=llm)
+                      await agent.run()
+                  except Exception as e:
+                      print(f'❌ Test Case {index + 1} Failed: {e}')
+
+          if __name__ == '__main__':
+              asyncio.run(run_suite())
+          "
