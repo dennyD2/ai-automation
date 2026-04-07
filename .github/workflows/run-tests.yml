@@ -1,4 +1,4 @@
-name: AI UI-First Test Runner
+name: AI UI Test Runner (Gemini)
 
 on:
   push:
@@ -21,10 +21,10 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install pandas openpyxl playwright langchain-openai
+          pip install pandas openpyxl playwright langchain-google-genai
           python -m playwright install chromium --with-deps
 
       - name: Run tests
         env:
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python run_tests.py
