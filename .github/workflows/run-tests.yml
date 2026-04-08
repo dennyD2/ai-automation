@@ -1,4 +1,4 @@
-name: AI UI Test Runner (Gemini)
+name: AI Smart Test Runner
 
 on:
   push:
@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Python
@@ -18,13 +18,13 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: |
           pip install --upgrade pip
-          pip install pandas openpyxl playwright langchain-openai
+          pip install pandas openpyxl playwright langchain-openai openai
           python -m playwright install chromium --with-deps
 
-      - name: Run tests
+      - name: Run Tests
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: python run_tests.py
