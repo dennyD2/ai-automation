@@ -23,6 +23,33 @@ MODEL      = "deepseek-chat"
 API_URL    = "https://api.deepseek.com/v1/chat/completions"
 API_KEY    = os.getenv("DEEPSEEK_API_KEY", "")
 
+# ── Scope: control exactly what to run ───────────────────────────────────────
+#
+# Option 1 — Run EVERYTHING (all sheets, all rows):
+#   SCOPE = {}
+#
+# Option 2 — Run ALL rows in specific sheets:
+#   SCOPE = {
+#       "Login":     None,
+#       "Dashboard": None,
+#   }
+#
+# Option 3 — Run SPECIFIC test case IDs within a sheet:
+#   SCOPE = {
+#       "Login":     ["login_01", "login_03", "login_15"],
+#       "Dashboard": ["dash_02", "dash_07"],
+#   }
+#
+# Option 4 — Mix (all rows in one sheet, specific IDs in another):
+#   SCOPE = {
+#       "Login":     None,                        # all rows in Login
+#       "Dashboard": ["dash_01", "dash_05"],      # only these in Dashboard
+#   }
+#
+SCOPE: Dict[str, Any] = {
+    "Forgot Password": None,
+}   # ← edit this to control what runs
+
 # ── AI call (stdlib only, no langchain) ───────────────────────────────────────
 
 async def call_ai(messages: List[Dict]) -> str:
@@ -471,6 +498,14 @@ async def main():
     print(f"📂  Excel: {EXCEL_PATH}")
     print(f"📋  Sheets: {xl.sheet_names}")
 
+    # Resolve which sheets to run
+    if SCOPE:
+        sheets_to_run = [s for s in xl.sheet_names if s in SCOPE]
+        print(f"🎯  Scope active — running sheets: {sheets_to_run}")
+    else:
+        sheets_to_run = xl.sheet_names
+        print(f"🎯  No scope — running ALL sheets")
+
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(headless=True)
         context = await browser.new_context(viewport={"width": 1280, "height": 800})
@@ -494,8 +529,8 @@ async def main():
             await browser.close()
             sys.exit(2)
 
-        # ── Run every sheet ───────────────────────────────────────────────────
-        for sheet in xl.sheet_names:
+        # ── Run sheets ────────────────────────────────────────────────────────
+        for sheet in sheets_to_run:
             print(f"\n{'='*60}")
             print(f"  Sheet: {sheet}")
             print(f"{'='*60}")
@@ -505,6 +540,9 @@ async def main():
                 print(f"  ⚠️  Skipping sheet '{sheet}': {exc}")
                 continue
 
+            # Resolve which case IDs to run in this sheet
+            allowed_ids = SCOPE.get(sheet) if SCOPE else None  # None = all
+
             for idx, row in df.iterrows():
                 case_id     = to_str(row.get("Test case ID", row.get("Test case", ""))) or f"{sheet}_row{idx}"
                 description = to_str(row.get("Description", ""))
@@ -512,6 +550,10 @@ async def main():
 
                 if not description:
                     continue  # blank row
+
+                # Skip if not in the allowed list for this sheet
+                if allowed_ids is not None and case_id not in allowed_ids:
+                    continue
 
                 print(f"\n  🚀  {case_id}")
                 print(f"      📝  {description[:120].replace(chr(10),' ')}")
