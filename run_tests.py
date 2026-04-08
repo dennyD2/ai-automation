@@ -15,7 +15,7 @@ from playwright.async_api import async_playwright, Page
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-BASE_URL   = os.getenv("BASE_URL",   "https://trajector.bling-ai.com/trajector/login/")
+BASE_URL   = os.getenv("BASE_URL",   "https://main.d1lrc6o2sgi54h.amplifyapp.com/trajector/login.html")
 EXCEL_PATH = os.getenv("EXCEL_PATH", "Trajector Test cases.xlsx")
 ARTIFACTS  = "artifacts"
 MAX_STEPS  = 10        # max AI actions per test case before forced verify
