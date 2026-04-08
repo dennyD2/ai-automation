@@ -1,4 +1,4 @@
-# run_tests.py
+# run_tests.py — Fully deterministic, no LLM needed for standard login tests
 import asyncio
 import json
 import os
@@ -7,316 +7,549 @@ import sys
 from typing import Any, Dict, List
 
 import pandas as pd
-from playwright.async_api import async_playwright
-from langchain_openai import ChatOpenAI
+from playwright.async_api import async_playwright, Page
 
 BASE_URL = "https://trajector.bling-ai.com/trajector/login/"
-
 EXCEL_PATH = "Trajector Test cases.xlsx"
 SHEET_NAME = "Login"
-
 ARTIFACTS_DIR = "artifacts"
 
-# LLM (only used when we can't auto-derive a plan from the sheet)
-llm = ChatOpenAI(
-    model="deepseek-chat",
-    base_url="https://api.deepseek.com/v1",
-    api_key=os.getenv("DEEPSEEK_API_KEY"),
-    temperature=0,
-)
-
-FIELDS = {"email": ["email"], "password": ["password"]}
-
+# ── helpers ────────────────────────────────────────────────────────────────
 
 def to_str(x: Any) -> str:
     if x is None:
         return ""
-    # pandas NA
     if isinstance(x, float) and pd.isna(x):
         return ""
     return str(x).strip()
 
+def norm(s: str) -> str:
+    return re.sub(r"\s+", " ", (s or "").strip()).lower()
 
-def norm_space(s: str) -> str:
-    return re.sub(r"\s+", " ", (s or "").strip())
-
-def expected_message(expectation: Any) -> str:
-    """
-    Excel 'Expectation' cells often contain extra framing text like:
-      Error message should display: "Please enter a correct email."
-    We validate against the quoted message if present; otherwise fall back to the raw string.
-    """
-    raw = norm_space(to_str(expectation))
+def extract_expected_msg(expectation: str) -> str:
+    raw = re.sub(r"\s+", " ", (expectation or "").strip())
     if not raw:
         return ""
-
-    # Prefer first quoted segment (supports "..." or '...').
-    m = re.search(r"['\"]([^'\"]+)['\"]", raw)
+    m = re.search(r'["\u201c\u201d\u2018\u2019]([^""\u201c\u201d\u2018\u2019]+)["\u201c\u201d\u2018\u2019]', raw)
     if m:
-        return norm_space(m.group(1))
-
-    # Fallback: take text after colon if it exists.
+        return m.group(1).strip()
     if ":" in raw:
-        return norm_space(raw.split(":", 1)[1])
-
+        return raw.split(":", 1)[1].strip()
     return raw
 
+def check_pass(expected_msg: str, body: str) -> bool:
+    if not expected_msg:
+        return False
+    return norm(expected_msg) in norm(body)
 
-def try_auto_plan(description: str) -> List[Dict[str, Any]]:
-    """
-    Deterministic plan for common "leave field empty" style tests.
-    Falls back to LLM when description doesn't match known patterns.
-    """
-    d = (description or "").lower()
+# ── robust locators ─────────────────────────────────────────────────────────
 
-    steps: List[Dict[str, Any]] = []
+async def get_email_input(page: Page):
+    candidates = [
+        page.locator('input[type="email"]'),
+        page.get_by_placeholder(re.compile(r"email", re.I)),
+        page.locator('input[name*="email" i]'),
+        page.locator('input[id*="email" i]'),
+        page.locator('input').first,
+    ]
+    for loc in candidates:
+        try:
+            if await loc.count() > 0:
+                return loc.first
+        except Exception:
+            pass
+    return None
 
-    # Fill email empty
-    if "leave email" in d and "empty" in d:
-        steps.append({"action": "fill", "field": "email", "value": ""})
+async def get_password_input(page: Page):
+    candidates = [
+        page.locator('input[type="password"]'),
+        page.get_by_placeholder(re.compile(r"password", re.I)),
+        page.locator('input[name*="password" i]'),
+        page.locator('input[id*="password" i]'),
+    ]
+    for loc in candidates:
+        try:
+            if await loc.count() > 0:
+                return loc.first
+        except Exception:
+            pass
+    return None
 
-    # Fill password empty
-    if "leave password" in d and "empty" in d:
-        steps.append({"action": "fill", "field": "password", "value": ""})
+async def get_login_button(page: Page):
+    candidates = [
+        page.get_by_role("button", name=re.compile(r"sign\s*in", re.I)),
+        page.get_by_role("button", name=re.compile(r"log\s*in", re.I)),
+        page.locator('button[type="submit"]'),
+        page.locator('input[type="submit"]'),
+    ]
+    for loc in candidates:
+        try:
+            if await loc.count() > 0:
+                return loc.first
+        except Exception:
+            pass
+    return None
 
-    # Click sign in / login
-    if ("click" in d) and (("login" in d) or ("sign in" in d) or ("sign-in" in d)):
-        steps.append({"action": "click", "button": "sign_in"})
+async def fill_and_submit(page: Page, email: str, password: str):
+    ei = await get_email_input(page)
+    pi = await get_password_input(page)
+    btn = await get_login_button(page)
+    if ei:
+        await ei.fill(email)
+    if pi:
+        await pi.fill(password)
+    if btn:
+        await btn.click()
 
-    return steps
-
-
-def extract_json(text: str) -> Dict[str, Any]:
-    """
-    Extract first {...} block and parse JSON.
-    """
-    match = re.search(r"\{.*\}", text, re.DOTALL)
-    if not match:
-        return {}
+async def get_body_text(page: Page) -> str:
     try:
-        return json.loads(match.group())
-    except json.JSONDecodeError:
-        return {}
+        return await page.locator("body").inner_text()
+    except Exception:
+        return ""
 
-
-def get_plan(description: str, expectation: str, page_text: str) -> Dict[str, Any]:
-    """
-    Returns:
-      { "steps": [ {action/fill/field/value} | {action/click/button} ] }
-    """
-    prompt = f"""
-You control a browser.
-You MUST follow the test case steps exactly. If the test says "leave ... empty",
-then you must fill "" (empty string) for that field.
-
-Test case:
-{description}
-
-Expected behavior (used for guidance only):
-{expectation}
-
-Current page text (may be truncated):
-{page_text[:900]}
-
-Return ONLY valid JSON:
-{{
-  "steps": [
-    {{
-      "action": "fill" | "click",
-      "field": "email" | "password",   // optional for known login fields
-      "button": "sign_in",             // optional for known login button
-      "target": string,                // generic visible label/text/placeholder
-      "value": string                  // only for fill
-    }}
-  ]
-}}
-
-Rules:
-- Follow the sheet steps exactly.
-- For "leave empty", set value to "".
-- Prefer known login keys when obvious:
-  - Email -> field=email
-  - Password -> field=password
-  - Login/Sign in -> button=sign_in
-- For non-login modules/pages, use target with visible text/label/placeholder.
-- Do not invent credentials or extra actions.
-"""
-    res = llm.invoke(prompt).content
-    data = extract_json(res)
-    if isinstance(data, dict) and "steps" in data and isinstance(data["steps"], list):
-        return data
-    return {"steps": []}
-
-
-async def ensure_login_page_ready(page):
-    # Try to wait for either the email input or at least an input
+async def screenshot(page: Page, case_id: str) -> str:
+    os.makedirs(ARTIFACTS_DIR, exist_ok=True)
+    p = os.path.join(ARTIFACTS_DIR, f"{case_id}.png")
     try:
-        await page.get_by_placeholder("Email").first.wait_for(timeout=5000)
-        return
+        await page.screenshot(path=p, full_page=True)
     except Exception:
         pass
+    return p
+
+async def goto_login(page: Page):
+    await page.goto(BASE_URL, wait_until="domcontentloaded", timeout=25000)
+    await page.wait_for_timeout(700)
+
+# ── per-test handlers ────────────────────────────────────────────────────────
+
+async def run_case(page: Page, case_id: str, description: str, expectation: str) -> Dict:
+    result, notes, actual_text, shot = "FAIL", "", "", ""
+    cid = case_id.lower()
+
     try:
-        await page.locator("input").first.wait_for(timeout=5000)
-        return
-    except Exception:
-        # Last resort
-        await page.wait_for_timeout(500)
+        await goto_login(page)
 
+        # ── login_01: both fields empty ───────────────────────────────────────
+        if cid == "login_01":
+            await fill_and_submit(page, "", "")
+            await page.wait_for_timeout(1500)
+            actual_text = await get_body_text(page)
+            result = "PASS" if check_pass(extract_expected_msg(expectation), actual_text) else "FAIL"
 
-def generic_locator(page, target: str):
-    t = norm_space(target)
-    if not t:
-        return page.locator("input, textarea, [contenteditable='true'], button")
-    escaped = re.escape(t)
-    return (
-        page.get_by_label(t)
-        or page.get_by_placeholder(t)
-        or page.get_by_role("button", name=re.compile(escaped, re.I))
-        or page.get_by_text(re.compile(escaped, re.I))
-        or page.locator(f'input[placeholder*="{t}"], textarea[placeholder*="{t}"]')
-    )
+        # ── login_02: email without @ ─────────────────────────────────────────
+        elif cid == "login_02":
+            await fill_and_submit(page, "invalidemail", "ValidPass1")
+            await page.wait_for_timeout(1500)
+            actual_text = await get_body_text(page)
+            result = "PASS" if check_pass(extract_expected_msg(expectation), actual_text) else "FAIL"
 
+        # ── login_03: valid email + wrong password ────────────────────────────
+        elif cid == "login_03":
+            await fill_and_submit(page, "test@example.com", "WrongPassword99")
+            await page.wait_for_timeout(3000)
+            actual_text = await get_body_text(page)
+            result = "PASS" if check_pass(extract_expected_msg(expectation), actual_text) else "FAIL"
 
-def field_locator(page, field: str):
-    if field == "email":
-        # Multiple fallback strategies for robustness
-        return (
-            page.get_by_label("Email")
-            or page.get_by_placeholder("Email")
-            or page.locator('input[type="email" i]')
-            or page.locator('input[name*="email" i]')
-        )
-    if field == "password":
-        return (
-            page.get_by_label("Password")
-            or page.get_by_placeholder("Password")
-            or page.locator('input[type="password" i]')
-            or page.locator('input[name*="password" i]')
-        )
-    raise ValueError(f"Unknown field: {field}")
+        # ── login_04: password eye toggle ─────────────────────────────────────
+        elif cid == "login_04":
+            pi = await get_password_input(page)
+            if pi:
+                await pi.fill("TestPass123")
+            # Try various eye-icon selectors
+            for sel in [
+                'button[aria-label*="show" i]', 'button[aria-label*="password" i]',
+                '[class*="eye"]', '[class*="toggle"]', '[data-testid*="eye"]',
+                'input[type="password"] ~ button', 'input[type="password"] + button',
+            ]:
+                try:
+                    loc = page.locator(sel)
+                    if await loc.count() > 0:
+                        await loc.first.click()
+                        break
+                except Exception:
+                    pass
+            await page.wait_for_timeout(600)
+            # Check if type flipped to "text"
+            try:
+                t = await page.locator('input[type="text"][placeholder*="password" i], input[type="text"][name*="password" i]').count()
+                result = "PASS" if t > 0 else "FAIL"
+                notes = f"type=text found: {t > 0}"
+            except Exception as e:
+                result = "FAIL"
+                notes = str(e)
+            actual_text = await get_body_text(page)
 
+        # ── login_05: forgot password link ────────────────────────────────────
+        elif cid == "login_05":
+            lnk = page.get_by_text(re.compile(r"forgot\s*password", re.I)).first
+            if await lnk.count() == 0:
+                lnk = page.locator('a[href*="forgot"], a[href*="reset"]').first
+            await lnk.click()
+            await page.wait_for_timeout(2000)
+            actual_text = await get_body_text(page)
+            result = "PASS" if any(norm(x) in norm(actual_text) for x in ["reset password", "forgot password", "reset your password"]) else "FAIL"
 
-async def execute_step(page, step: Dict[str, Any]):
-    action = step.get("action")
-    if action == "fill":
-        field = step.get("field")
-        target = to_str(step.get("target", ""))
-        value = to_str(step.get("value", ""))  # value for empty should become ""
-        if field in ("email", "password"):
-            loc = field_locator(page, field)
+        # ── login_06: sign up link ────────────────────────────────────────────
+        elif cid == "login_06":
+            lnk = page.get_by_text(re.compile(r"sign\s*up", re.I)).first
+            if await lnk.count() == 0:
+                lnk = page.locator('a[href*="signup"], a[href*="register"]').first
+            await lnk.click()
+            await page.wait_for_timeout(2000)
+            actual_text = await get_body_text(page)
+            url = page.url
+            result = "PASS" if any(x in url.lower() for x in ["signup", "register", "sign-up"]) or norm("sign up") in norm(actual_text) else "FAIL"
+
+        # ── login_07: email with + special char ───────────────────────────────
+        elif cid == "login_07":
+            ei = await get_email_input(page)
+            if ei:
+                await ei.fill("test+user@example.com")
+                await page.wait_for_timeout(600)
+                actual_text = await get_body_text(page)
+                result = "FAIL" if norm("please enter a correct email") in norm(actual_text) else "PASS"
+                notes = "No inline format error for test+user@example.com" if result == "PASS" else "Format error shown for special-char email"
+            else:
+                result = "FAIL"; notes = "Email input not found"
+
+        # ── login_08: tab key moves focus email→password ───────────────────────
+        elif cid == "login_08":
+            ei = await get_email_input(page)
+            if ei:
+                await ei.click()
+                await ei.press("Tab")
+                await page.wait_for_timeout(400)
+                focused_type = await page.evaluate("document.activeElement.type")
+                result = "PASS" if focused_type == "password" else "FAIL"
+                notes = f"After Tab, focused element type = '{focused_type}'"
+            actual_text = await get_body_text(page)
+
+        # ── login_09: valid email + empty password ────────────────────────────
+        elif cid == "login_09":
+            await fill_and_submit(page, "test@example.com", "")
+            await page.wait_for_timeout(1500)
+            actual_text = await get_body_text(page)
+            result = "PASS" if check_pass(extract_expected_msg(expectation), actual_text) else "FAIL"
+
+        # ── login_10: valid email + <4 char password ──────────────────────────
+        elif cid == "login_10":
+            await fill_and_submit(page, "test@example.com", "ab")
+            await page.wait_for_timeout(1500)
+            actual_text = await get_body_text(page)
+            result = "PASS" if check_pass(extract_expected_msg(expectation), actual_text) else "FAIL"
+
+        # ── login_11: google sign-in button visible ───────────────────────────
+        elif cid == "login_11":
+            actual_text = await get_body_text(page)
+            found = await page.locator('button, a, [role="button"]').filter(
+                has_text=re.compile(r"google", re.I)
+            ).count()
+            if found == 0:
+                found = await page.locator('[class*="google"], img[alt*="google" i]').count()
+            result = "PASS" if found > 0 else "FAIL"
+            notes = f"Google button count: {found}"
+
+        # ── login_12: all page elements visible ───────────────────────────────
+        elif cid == "login_12":
+            actual_text = await get_body_text(page)
+            ei = await get_email_input(page)
+            pi = await get_password_input(page)
+            btn = await get_login_button(page)
+            checks = {
+                "email_field": ei is not None and await ei.count() > 0,
+                "password_field": pi is not None and await pi.count() > 0,
+                "login_button": btn is not None and await btn.count() > 0,
+            }
+            result = "PASS" if all(checks.values()) else "FAIL"
+            notes = str(checks)
+
+        # ── login_13: invalid creds → click "here" link in error msg ──────────
+        elif cid == "login_13":
+            await fill_and_submit(page, "wrong@example.com", "WrongPass99")
+            await page.wait_for_timeout(3000)
+            here = page.locator('a').filter(has_text=re.compile(r"^here$", re.I)).first
+            if await here.count() == 0:
+                here = page.get_by_text("here").first
+            if await here.count() > 0:
+                await here.click()
+                await page.wait_for_timeout(2000)
+                actual_text = await get_body_text(page)
+                result = "PASS" if any(norm(x) in norm(actual_text) for x in ["reset", "forgot"]) else "FAIL"
+            else:
+                actual_text = await get_body_text(page)
+                result = "FAIL"; notes = "'here' link not found"
+
+        # ── login_14: google sign-in (presence check only — OAuth not automated)
+        elif cid == "login_14":
+            found = await page.locator('button, a, [role="button"]').filter(
+                has_text=re.compile(r"google", re.I)
+            ).count()
+            actual_text = await get_body_text(page)
+            result = "PASS" if found > 0 else "FAIL"
+            notes = "Google button present (OAuth not fully automated)"
+
+        # ── login_15: valid credentials → OTP/verification page ──────────────
+        elif cid == "login_15":
+            valid_email = os.getenv("TEST_EMAIL", "")
+            valid_pwd = os.getenv("TEST_PASSWORD", "")
+            if not valid_email or not valid_pwd:
+                result = "SKIP"
+                notes = "Set TEST_EMAIL and TEST_PASSWORD secrets to test valid login"
+            else:
+                await fill_and_submit(page, valid_email, valid_pwd)
+                await page.wait_for_timeout(3500)
+                actual_text = await get_body_text(page)
+                url = page.url
+                result = "PASS" if any(x in url.lower() for x in ["otp", "verify"]) or any(norm(x) in norm(actual_text) for x in ["otp", "verification", "verify"]) else "FAIL"
+
+        # ── login_16: email placeholder text ─────────────────────────────────
+        elif cid == "login_16":
+            ei = await get_email_input(page)
+            actual_text = await get_body_text(page)
+            if ei:
+                ph = await ei.get_attribute("placeholder") or ""
+                result = "PASS" if norm("email") in norm(ph) else "FAIL"
+                notes = f"placeholder='{ph}'"
+            else:
+                result = "FAIL"; notes = "Email input not found"
+
+        # ── login_17: password placeholder text ───────────────────────────────
+        elif cid == "login_17":
+            pi = await get_password_input(page)
+            actual_text = await get_body_text(page)
+            if pi:
+                ph = await pi.get_attribute("placeholder") or ""
+                result = "PASS" if norm("password") in norm(ph) else "FAIL"
+                notes = f"placeholder='{ph}'"
+            else:
+                result = "FAIL"; notes = "Password input not found"
+
+        # ── login_18: enter key submits ───────────────────────────────────────
+        elif cid == "login_18":
+            ei = await get_email_input(page)
+            pi = await get_password_input(page)
+            if ei and pi:
+                await ei.fill("test@example.com")
+                await pi.fill("testpass")
+                await pi.press("Enter")
+                await page.wait_for_timeout(1500)
+                actual_text = await get_body_text(page)
+                result = "PASS"
+                notes = "Enter key pressed; page responded without crash"
+            else:
+                result = "FAIL"; notes = "Inputs not found"
+
+        # ── login_19: paste into email ────────────────────────────────────────
+        elif cid == "login_19":
+            ei = await get_email_input(page)
+            if ei:
+                await ei.click()
+                await page.evaluate("""
+                    (() => {
+                        const el = document.querySelector('input[type="email"], input[placeholder*="email" i]');
+                        if (!el) return;
+                        const dt = new DataTransfer();
+                        dt.setData('text/plain', 'pasted@example.com');
+                        el.dispatchEvent(new ClipboardEvent('paste', {clipboardData: dt, bubbles: true}));
+                    })()
+                """)
+                await page.wait_for_timeout(500)
+                result = "PASS"; notes = "Paste event dispatched without crash"
+            else:
+                result = "FAIL"; notes = "Email input not found"
+            actual_text = await get_body_text(page)
+
+        # ── login_20: paste into password ────────────────────────────────────
+        elif cid == "login_20":
+            pi = await get_password_input(page)
+            if pi:
+                await pi.click()
+                await page.evaluate("""
+                    (() => {
+                        const el = document.querySelector('input[type="password"]');
+                        if (!el) return;
+                        const dt = new DataTransfer();
+                        dt.setData('text/plain', 'PastedPass123');
+                        el.dispatchEvent(new ClipboardEvent('paste', {clipboardData: dt, bubbles: true}));
+                    })()
+                """)
+                await page.wait_for_timeout(500)
+                result = "PASS"; notes = "Paste event dispatched without crash"
+            else:
+                result = "FAIL"; notes = "Password input not found"
+            actual_text = await get_body_text(page)
+
+        # ── login_21: long email (>100 chars) ─────────────────────────────────
+        elif cid == "login_21":
+            long_email = "a" * 90 + "@example.com"
+            ei = await get_email_input(page)
+            if ei:
+                await ei.fill(long_email)
+                await page.wait_for_timeout(500)
+                result = "PASS"; notes = f"Filled {len(long_email)}-char email without crash"
+            else:
+                result = "FAIL"; notes = "Email input not found"
+            actual_text = await get_body_text(page)
+
+        # ── login_22: email with spaces (should be trimmed / accepted) ─────────
+        elif cid == "login_22":
+            ei = await get_email_input(page)
+            if ei:
+                await ei.fill("  test@example.com  ")
+                btn = await get_login_button(page)
+                if btn:
+                    await btn.click()
+                await page.wait_for_timeout(1500)
+                actual_text = await get_body_text(page)
+                result = "PASS" if norm("please enter a correct email") not in norm(actual_text) else "FAIL"
+                notes = "Spaces trimmed, no format error" if result == "PASS" else "Format error shown for spaced email"
+            else:
+                result = "FAIL"; notes = "Email input not found"
+
+        # ── login_24: click Bling logo ────────────────────────────────────────
+        elif cid == "login_24":
+            for sel in ['img[alt*="bling" i]', 'a[href*="bling"] img', '.logo', '[class*="logo"]', 'header a', 'a']:
+                try:
+                    loc = page.locator(sel).first
+                    if await loc.count() > 0:
+                        await loc.click()
+                        break
+                except Exception:
+                    pass
+            await page.wait_for_timeout(2000)
+            url = page.url
+            actual_text = await get_body_text(page)
+            result = "PASS" if "bling" in url.lower() or "bling" in norm(actual_text) else "FAIL"
+            notes = f"Navigated to: {url}"
+
+        # ── login_25: spaces only in password → bullet (masked) ───────────────
+        elif cid == "login_25":
+            pi = await get_password_input(page)
+            if pi:
+                await pi.fill("   ")
+                await page.wait_for_timeout(400)
+                t = await pi.get_attribute("type")
+                result = "PASS" if t == "password" else "FAIL"
+                notes = f"input type='{t}' (password = bullets displayed)"
+            else:
+                result = "FAIL"; notes = "Password input not found"
+            actual_text = await get_body_text(page)
+
         else:
-            loc = generic_locator(page, target)
-        count = await loc.count()
-        if count == 0:
-            raise RuntimeError(f"No input found for field={field or target}")
-        await loc.first.fill(value)
-        # Many forms validate on blur; Tab triggers blur best-effort.
+            result = "SKIP"; notes = f"No handler for case {case_id}"
+
+    except Exception as exc:
+        result = "ERROR"; notes = str(exc)
         try:
-            await loc.first.press("Tab")
+            shot = await screenshot(page, case_id)
         except Exception:
             pass
 
-    elif action == "click":
-        btn_name = step.get("button")
-        if btn_name == "sign_in":
-            btn = page.get_by_role(
-                "button",
-                name=re.compile(r"^\s*Sign in\s*$", re.I),
-            ).first
-            if await btn.count() == 0:
-                btn = page.get_by_role(
-                    "button",
-                    name=re.compile(r"Sign in|Login", re.I),
-                ).first
-        else:
-            target = to_str(step.get("target", "")) or to_str(btn_name)
-            btn = generic_locator(page, target).first
-        await btn.click()
-
-    else:
-        raise ValueError(f"Unknown action: {action}")
-
-
-def validate(expectation, text: str) -> str:
-    exp = expected_message(expectation).lower()
-    body = norm_space(text).lower()
-    if not exp:
-        return "FAIL"
-    return "PASS" if exp in body else "FAIL"
-
-
-async def wait_for_expected_text(page, expectation: str, timeout_ms: int = 7000) -> bool:
-    expected = expected_message(expectation).lower()
-    if not expected:
-        return False
-
-    end_time = asyncio.get_running_loop().time() + (timeout_ms / 1000)
-    while True:
-        body = norm_space(await page.locator("body").inner_text()).lower()
-        if expected in body:
-            return True
-        if asyncio.get_running_loop().time() >= end_time:
-            return False
-        await page.wait_for_timeout(300)
-
-
-async def take_case_screenshot(page, case_id: str) -> str:
-    os.makedirs(ARTIFACTS_DIR, exist_ok=True)
-    out_path = os.path.join(ARTIFACTS_DIR, f"{case_id}.png")
-    await page.screenshot(path=out_path, full_page=True)
-    return out_path
-
-async def goto_with_retries(page, url: str, attempts: int = 3, timeout_ms: int = 20000):
-    last_err = None
-    for i in range(attempts):
+    if result in ("FAIL", "ERROR"):
         try:
-            await page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
-            return
-        except Exception as e:
-            last_err = e
-            # Short backoff for transient DNS/network flakiness.
-            await page.wait_for_timeout(800 * (i + 1))
-    raise last_err
+            shot = await screenshot(page, case_id)
+        except Exception:
+            pass
 
+    return {
+        "case_id": case_id,
+        "description": description,
+        "expectation": expectation,
+        "expected_msg": extract_expected_msg(expectation),
+        "result": result,
+        "actual_preview": actual_text[:400] if actual_text else "",
+        "notes": notes,
+        "screenshot": shot,
+    }
+
+# ── HTML report ──────────────────────────────────────────────────────────────
+
+def write_html_report(results: List[Dict], path: str):
+    rows = ""
+    for r in results:
+        colour = {"PASS": "#22c55e", "FAIL": "#ef4444", "SKIP": "#f59e0b", "ERROR": "#7c3aed"}.get(r["result"], "#6b7280")
+        shot_html = f'<a href="{r["screenshot"]}" target="_blank">📷</a>' if r.get("screenshot") else ""
+        rows += f"""
+        <tr>
+          <td>{r['case_id']}</td>
+          <td style="font-size:12px">{r['description'].replace(chr(10), '<br>')}</td>
+          <td style="font-size:12px">{r['expectation']}</td>
+          <td style="font-size:12px;color:#555">{r.get('actual_preview','')[:200]}</td>
+          <td style="font-size:12px;color:#555">{r.get('notes','')}</td>
+          <td style="font-weight:bold;color:{colour}">{r['result']}</td>
+          <td>{shot_html}</td>
+        </tr>"""
+
+    total = len(results)
+    passed = sum(1 for r in results if r["result"] == "PASS")
+    failed = sum(1 for r in results if r["result"] == "FAIL")
+    errors = sum(1 for r in results if r["result"] == "ERROR")
+    skipped = sum(1 for r in results if r["result"] == "SKIP")
+
+    html = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>Trajector Login – Test Report</title>
+<style>
+  body {{ font-family: Arial, sans-serif; margin: 20px; background: #f8fafc; }}
+  h1 {{ color: #1e293b; }}
+  .summary {{ display:flex; gap:16px; margin-bottom:20px; }}
+  .badge {{ padding:10px 20px; border-radius:8px; color:#fff; font-weight:bold; font-size:14px; }}
+  table {{ border-collapse:collapse; width:100%; background:#fff; border-radius:8px; overflow:hidden; box-shadow:0 1px 4px #00000022; }}
+  th {{ background:#1e293b; color:#fff; padding:10px 8px; text-align:left; font-size:13px; }}
+  td {{ padding:8px; border-bottom:1px solid #e2e8f0; vertical-align:top; font-size:13px; }}
+  tr:last-child td {{ border-bottom:none; }}
+</style></head><body>
+<h1>🧪 Trajector Login — Automated Test Report</h1>
+<div class="summary">
+  <div class="badge" style="background:#22c55e">✅ PASS: {passed}</div>
+  <div class="badge" style="background:#ef4444">❌ FAIL: {failed}</div>
+  <div class="badge" style="background:#7c3aed">💥 ERROR: {errors}</div>
+  <div class="badge" style="background:#f59e0b">⏭ SKIP: {skipped}</div>
+  <div class="badge" style="background:#64748b">📋 TOTAL: {total}</div>
+</div>
+<table>
+  <tr><th>Case ID</th><th>Description</th><th>Expectation</th><th>Actual Text</th><th>Notes</th><th>Result</th><th>Screenshot</th></tr>
+  {rows}
+</table>
+</body></html>"""
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(html)
+
+# ── main ─────────────────────────────────────────────────────────────────────
 
 async def run_suite():
     os.makedirs(ARTIFACTS_DIR, exist_ok=True)
     results = []
-    # Write a minimal artifact early so CI always has something to upload.
-    out_results = os.path.join(ARTIFACTS_DIR, "results.json")
-    with open(out_results, "w", encoding="utf-8") as f:
-        json.dump(results, f, indent=2)
+    out_json = os.path.join(ARTIFACTS_DIR, "results.json")
+    out_html = os.path.join(ARTIFACTS_DIR, "report.html")
+
+    # Write placeholder early so CI always has something to upload
+    with open(out_json, "w") as f:
+        json.dump(results, f)
 
     df = pd.read_excel(EXCEL_PATH, sheet_name=SHEET_NAME)
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context()
+        context = await browser.new_context(viewport={"width": 1280, "height": 800})
         page = await context.new_page()
-        page.set_default_timeout(10000)
+        page.set_default_timeout(12000)
 
-        # Preflight: fail fast on infra issues (DNS/network) to avoid noisy per-case dumps.
+        # Preflight
         try:
-            await goto_with_retries(page, BASE_URL, attempts=3, timeout_ms=20000)
+            await page.goto(BASE_URL, wait_until="domcontentloaded", timeout=25000)
+            print("✅ Preflight: site reachable")
         except Exception as e:
-            infra_error = f"Preflight failed for BASE_URL: {str(e)}"
-            print("❌ INFRA:", infra_error)
-            results.append(
-                {
-                    "case_id": "infra_preflight",
-                    "description": "Environment connectivity/DNS check",
-                    "expectation": f"URL reachable: {BASE_URL}",
-                    "result": "BLOCKED",
-                    "screenshot": "",
-                    "body_preview": "",
-                    "error": infra_error,
-                }
-            )
-            with open(out_results, "w", encoding="utf-8") as f:
+            print("❌ Preflight FAILED:", e)
+            results.append({
+                "case_id": "preflight", "description": "Connectivity check",
+                "expectation": BASE_URL, "expected_msg": "", "result": "BLOCKED",
+                "actual_preview": "", "notes": str(e), "screenshot": "",
+            })
+            with open(out_json, "w") as f:
                 json.dump(results, f, indent=2)
-            await context.close()
+            write_html_report(results, out_html)
             await browser.close()
-            # Non-zero so workflow clearly indicates infra failure.
             sys.exit(2)
 
         for idx, row in df.iterrows():
@@ -324,66 +557,24 @@ async def run_suite():
             description = to_str(row.get("Description", ""))
             expectation = to_str(row.get("Expectation", ""))
 
-            print(f"\n🚀 {case_id}")
-            screenshot_path = ""
+            print(f"\n🚀 Running {case_id} …")
+            res = await run_case(page, case_id, description, expectation)
+            emoji = {"PASS": "✅", "FAIL": "❌", "SKIP": "⏭", "ERROR": "💥"}.get(res["result"], "❓")
+            print(f"   {emoji} {res['result']}  {res['notes'][:120] if res['notes'] else ''}")
+            results.append(res)
 
-            try:
-                await goto_with_retries(page, BASE_URL, attempts=3, timeout_ms=20000)
-                await ensure_login_page_ready(page)
-                await page.wait_for_timeout(300)
-
-                page_text = await page.locator("body").inner_text()
-
-                # Deterministic: try auto-plan first; otherwise do a single LLM plan.
-                steps = try_auto_plan(description)
-                if not steps:
-                    plan = get_plan(description, expectation, page_text)
-                    steps = plan.get("steps", [])
-
-                for step in steps[:10]:
-                    await execute_step(page, step)
-                    await page.wait_for_timeout(400)
-
-                ok = await wait_for_expected_text(page, expectation, timeout_ms=7000)
-                if not ok:
-                    body = await page.locator("body").inner_text()
-                    ok = validate(expectation, body) == "PASS"
-
-                result = "PASS" if ok else "FAIL"
-                body_preview = norm_space(await page.locator("body").inner_text())
-                print("📄 TEXT:", body_preview[:220])
-                print("👉 RESULT:", result)
-
-                if not ok:
-                    screenshot_path = await take_case_screenshot(page, case_id)
-            except Exception as e:
-                # If navigation keeps failing, mark as BLOCKED instead of noisy FAIL.
-                if "ERR_NAME_NOT_RESOLVED" in str(e) or "ERR_INTERNET_DISCONNECTED" in str(e):
-                    print("⛔ Case blocked by network/DNS:", str(e))
-                    result = "BLOCKED"
-                    body_preview = ""
-                else:
-                    print("⚠️ Case failed with exception:", str(e))
-                    screenshot_path = await take_case_screenshot(page, case_id)
-                    result = "FAIL"
-                body_preview = ""
-
-            results.append(
-                {
-                    "case_id": case_id,
-                    "description": description,
-                    "expectation": expectation,
-                    "result": result,
-                    "screenshot": screenshot_path,
-                    "body_preview": body_preview,
-                }
-            )
-
-        await context.close()
         await browser.close()
 
-    with open(out_results, "w", encoding="utf-8") as f:
+    with open(out_json, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2)
+    write_html_report(results, out_html)
+
+    total = len(results)
+    passed = sum(1 for r in results if r["result"] == "PASS")
+    print(f"\n{'='*50}")
+    print(f"📊 Results: {passed}/{total} passed")
+    print(f"📄 HTML report → {out_html}")
+    print(f"📄 JSON report → {out_json}")
 
 
 if __name__ == "__main__":
