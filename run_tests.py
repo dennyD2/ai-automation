@@ -180,17 +180,18 @@ async def run_suite():
                 await page.wait_for_timeout(2000)
 
                 await perform_login(page, selectors, description)
-
+                
                 visible_text = await page.inner_text("body")
-
-                result = validate_result(
-                    description,
-                    expectation,
-                    visible_text
-                )
-
+                
+                result = validate_result(description, expectation, visible_text)
+                
                 print(f"✅ {test_id}: {result}")
                 results.append((test_id, result))
+                
+                # 🔥 reset state
+                await page.reload()
+                await page.wait_for_timeout(2000)
+                                
 
             except Exception as e:
                 print(f"❌ {test_id} failed: {e}")
