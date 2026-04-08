@@ -39,6 +39,27 @@ def to_str(x: Any) -> str:
 def norm_space(s: str) -> str:
     return re.sub(r"\s+", " ", (s or "").strip())
 
+def expected_message(expectation: Any) -> str:
+    """
+    Excel 'Expectation' cells often contain extra framing text like:
+      Error message should display: "Please enter a correct email."
+    We validate against the quoted message if present; otherwise fall back to the raw string.
+    """
+    raw = norm_space(to_str(expectation))
+    if not raw:
+        return ""
+
+    # Prefer first quoted segment (supports "..." or '...').
+    m = re.search(r"['\"]([^'\"]+)['\"]", raw)
+    if m:
+        return norm_space(m.group(1))
+
+    # Fallback: take text after colon if it exists.
+    if ":" in raw:
+        return norm_space(raw.split(":", 1)[1])
+
+    return raw
+
 
 def try_auto_plan(description: str) -> List[Dict[str, Any]]:
     """
@@ -100,21 +121,24 @@ Return ONLY valid JSON:
 {{
   "steps": [
     {{
-      "action": "fill",
-      "field": "email" | "password",
-      "value": string
-    }},
-    {{
-      "action": "click",
-      "button": "sign_in"
+      "action": "fill" | "click",
+      "field": "email" | "password",   // optional for known login fields
+      "button": "sign_in",             // optional for known login button
+      "target": string,                // generic visible label/text/placeholder
+      "value": string                  // only for fill
     }}
   ]
 }}
 
 Rules:
-- Use only fields: email, password.
-- Only use button: sign_in.
-- Do not add extra steps.
+- Follow the sheet steps exactly.
+- For "leave empty", set value to "".
+- Prefer known login keys when obvious:
+  - Email -> field=email
+  - Password -> field=password
+  - Login/Sign in -> button=sign_in
+- For non-login modules/pages, use target with visible text/label/placeholder.
+- Do not invent credentials or extra actions.
 """
     res = llm.invoke(prompt).content
     data = extract_json(res)
@@ -136,6 +160,20 @@ async def ensure_login_page_ready(page):
     except Exception:
         # Last resort
         await page.wait_for_timeout(500)
+
+
+def generic_locator(page, target: str):
+    t = norm_space(target)
+    if not t:
+        return page.locator("input, textarea, [contenteditable='true'], button")
+    escaped = re.escape(t)
+    return (
+        page.get_by_label(t)
+        or page.get_by_placeholder(t)
+        or page.get_by_role("button", name=re.compile(escaped, re.I))
+        or page.get_by_text(re.compile(escaped, re.I))
+        or page.locator(f'input[placeholder*="{t}"], textarea[placeholder*="{t}"]')
+    )
 
 
 def field_locator(page, field: str):
@@ -161,11 +199,15 @@ async def execute_step(page, step: Dict[str, Any]):
     action = step.get("action")
     if action == "fill":
         field = step.get("field")
+        target = to_str(step.get("target", ""))
         value = to_str(step.get("value", ""))  # value for empty should become ""
-        loc = field_locator(page, field)
+        if field in ("email", "password"):
+            loc = field_locator(page, field)
+        else:
+            loc = generic_locator(page, target)
         count = await loc.count()
         if count == 0:
-            raise RuntimeError(f"No input found for field={field}")
+            raise RuntimeError(f"No input found for field={field or target}")
         await loc.first.fill(value)
         # Many forms validate on blur; Tab triggers blur best-effort.
         try:
@@ -175,19 +217,19 @@ async def execute_step(page, step: Dict[str, Any]):
 
     elif action == "click":
         btn_name = step.get("button")
-        if btn_name != "sign_in":
-            raise ValueError(f"Unknown button: {btn_name}")
-
-        # Prefer exact "Sign in" role button
-        btn = page.get_by_role(
-            "button",
-            name=re.compile(r"^\s*Sign in\s*$", re.I),
-        ).first
-        if await btn.count() == 0:
+        if btn_name == "sign_in":
             btn = page.get_by_role(
                 "button",
-                name=re.compile(r"Sign in", re.I),
+                name=re.compile(r"^\s*Sign in\s*$", re.I),
             ).first
+            if await btn.count() == 0:
+                btn = page.get_by_role(
+                    "button",
+                    name=re.compile(r"Sign in|Login", re.I),
+                ).first
+        else:
+            target = to_str(step.get("target", "")) or to_str(btn_name)
+            btn = generic_locator(page, target).first
         await btn.click()
 
     else:
@@ -195,7 +237,7 @@ async def execute_step(page, step: Dict[str, Any]):
 
 
 def validate(expectation, text: str) -> str:
-    exp = norm_space(to_str(expectation)).lower()
+    exp = expected_message(expectation).lower()
     body = norm_space(text).lower()
     if not exp:
         return "FAIL"
@@ -203,7 +245,7 @@ def validate(expectation, text: str) -> str:
 
 
 async def wait_for_expected_text(page, expectation: str, timeout_ms: int = 7000) -> bool:
-    expected = norm_space(to_str(expectation)).lower()
+    expected = expected_message(expectation).lower()
     if not expected:
         return False
 
