@@ -266,6 +266,18 @@ async def take_case_screenshot(page, case_id: str) -> str:
     await page.screenshot(path=out_path, full_page=True)
     return out_path
 
+async def goto_with_retries(page, url: str, attempts: int = 3, timeout_ms: int = 20000):
+    last_err = None
+    for i in range(attempts):
+        try:
+            await page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+            return
+        except Exception as e:
+            last_err = e
+            # Short backoff for transient DNS/network flakiness.
+            await page.wait_for_timeout(800 * (i + 1))
+    raise last_err
+
 
 async def run_suite():
     os.makedirs(ARTIFACTS_DIR, exist_ok=True)
@@ -285,7 +297,7 @@ async def run_suite():
 
         # Preflight: fail fast on infra issues (DNS/network) to avoid noisy per-case dumps.
         try:
-            await page.goto(BASE_URL, wait_until="domcontentloaded", timeout=20000)
+            await goto_with_retries(page, BASE_URL, attempts=3, timeout_ms=20000)
         except Exception as e:
             infra_error = f"Preflight failed for BASE_URL: {str(e)}"
             print("❌ INFRA:", infra_error)
@@ -316,7 +328,7 @@ async def run_suite():
             screenshot_path = ""
 
             try:
-                await page.goto(BASE_URL)
+                await goto_with_retries(page, BASE_URL, attempts=3, timeout_ms=20000)
                 await ensure_login_page_ready(page)
                 await page.wait_for_timeout(300)
 
@@ -345,9 +357,15 @@ async def run_suite():
                 if not ok:
                     screenshot_path = await take_case_screenshot(page, case_id)
             except Exception as e:
-                print("⚠️ Case failed with exception:", str(e))
-                screenshot_path = await take_case_screenshot(page, case_id)
-                result = "FAIL"
+                # If navigation keeps failing, mark as BLOCKED instead of noisy FAIL.
+                if "ERR_NAME_NOT_RESOLVED" in str(e) or "ERR_INTERNET_DISCONNECTED" in str(e):
+                    print("⛔ Case blocked by network/DNS:", str(e))
+                    result = "BLOCKED"
+                    body_preview = ""
+                else:
+                    print("⚠️ Case failed with exception:", str(e))
+                    screenshot_path = await take_case_screenshot(page, case_id)
+                    result = "FAIL"
                 body_preview = ""
 
             results.append(
