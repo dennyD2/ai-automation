@@ -3,6 +3,7 @@ import asyncio
 import json
 import os
 import re
+import sys
 from typing import Any, Dict, List
 
 import pandas as pd
@@ -281,6 +282,30 @@ async def run_suite():
         context = await browser.new_context()
         page = await context.new_page()
         page.set_default_timeout(10000)
+
+        # Preflight: fail fast on infra issues (DNS/network) to avoid noisy per-case dumps.
+        try:
+            await page.goto(BASE_URL, wait_until="domcontentloaded", timeout=20000)
+        except Exception as e:
+            infra_error = f"Preflight failed for BASE_URL: {str(e)}"
+            print("❌ INFRA:", infra_error)
+            results.append(
+                {
+                    "case_id": "infra_preflight",
+                    "description": "Environment connectivity/DNS check",
+                    "expectation": f"URL reachable: {BASE_URL}",
+                    "result": "BLOCKED",
+                    "screenshot": "",
+                    "body_preview": "",
+                    "error": infra_error,
+                }
+            )
+            with open(out_results, "w", encoding="utf-8") as f:
+                json.dump(results, f, indent=2)
+            await context.close()
+            await browser.close()
+            # Non-zero so workflow clearly indicates infra failure.
+            sys.exit(2)
 
         for idx, row in df.iterrows():
             case_id = to_str(row.get("Test case ID", row.get("Test case", ""))) or f"row_{idx}"
