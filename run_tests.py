@@ -16,7 +16,7 @@ llm = ChatOpenAI(
 )
 
 
-# 🔧 JSON extractor
+# 🔧 Extract JSON safely
 def extract_json(text):
     try:
         match = re.search(r"\{.*\}", text, re.DOTALL)
@@ -27,115 +27,81 @@ def extract_json(text):
         return {}
 
 
-# ✅ STEP 1 — UI extraction
-async def extract_ui_elements(page):
+# ✅ STEP 1 — Extract UI elements (generic)
+async def extract_ui(page):
     return await page.evaluate("""
-    () => ({
-        inputs: Array.from(document.querySelectorAll('input')).map(e => ({
-            placeholder: e.placeholder,
-            id: e.id,
-            name: e.name,
-            type: e.type
-        })),
-        buttons: Array.from(document.querySelectorAll('button')).map(e => ({
-            text: e.innerText,
-            id: e.id
+    () => {
+        return Array.from(document.querySelectorAll('input, button, a')).map(el => ({
+            tag: el.tagName,
+            text: el.innerText,
+            placeholder: el.placeholder,
+            id: el.id,
+            name: el.name,
+            type: el.type
         }))
-    })
+    }
     """)
 
 
-# ✅ STEP 2 — AI selector detection with retry
-def analyze_ui(ui):
-    for attempt in range(3):
-        prompt = f"""
-Find selectors.
+# ✅ STEP 2 — AI decides actions (GENERIC)
+def get_actions(description, ui):
+    prompt = f"""
+You are an AI QA tester.
 
-UI:
+Test case:
+{description}
+
+UI elements:
 {ui}
 
-Return JSON:
-{{"email":"...","password":"...","button":"..."}}
-"""
-        res = llm.invoke(prompt)
-        data = extract_json(res.content)
+Decide steps to execute.
 
-        if data.get("email") and data.get("button"):
-            return data
+Return ONLY JSON:
 
-    return {}  # fallback
-
-
-# ✅ STEP 3 — fallback selectors
-def fallback_selectors():
-    return {
-        "email": 'input[type="email"], input[name="email"]',
-        "password": 'input[type="password"], input[name="password"]',
-        "button": 'button:has-text("Sign in"), button'
-    }
-
-
-# ✅ STEP 4 — perform action with retry + blur fix
-async def perform_login(page, selectors, description):
-    email = selectors.get("email")
-    password = selectors.get("password")
-    button = selectors.get("button")
-
-    print("🤖 Using selectors:", selectors)
-
-    # 🔥 FIXED logic
-    if "invalid" in description.lower():
-        email_val = "testgmail.com"
-        password_val = "123456"
-    elif "valid" in description.lower():
-        email_val = "test@example.com"
-        password_val = "123456"
-    else:
-        email_val = ""
-        password_val = ""
-
-    try:
-        if email:
-            await page.fill(email, email_val)
-            await page.press(email, "Tab")  # trigger validation
-    except:
-        print("⚠️ email fail")
-
-    try:
-        if password:
-            await page.fill(password, password_val)
-            await page.press(password, "Tab")
-    except:
-        print("⚠️ password fail")
-
-    # 🔁 click retry
-    for i in range(2):
-        try:
-            if button:
-                await page.click(button)
-                return
-        except:
-            print(f"⚠️ click retry {i+1}")
-
-    print("❌ click failed completely")
-
-
-# ✅ STEP 5 — validation
-def validate_result(expectation, text):
-    prompt = f"""
-Expected:
-{expectation}
-
-Actual:
-{text}
-
-Rule:
-If expected message is present → PASS else FAIL
-
-Return only PASS or FAIL
+{{
+  "steps": [
+    {{"action": "fill", "target": "email", "value": "test@gmail.com"}},
+    {{"action": "fill", "target": "password", "value": "123456"}},
+    {{"action": "click", "target": "Sign in"}}
+  ]
+}}
 """
     res = llm.invoke(prompt)
-    return res.content.strip()
+    return extract_json(res.content)
+
+
+# ✅ STEP 3 — Execute dynamically
+async def execute_steps(page, steps):
+    for step in steps:
+        action = step.get("action")
+        target = step.get("target")
+        value = step.get("value", "")
+
+        print(f"⚙️ {action} → {target}")
+
+        try:
+            if action == "fill":
+                locator = (
+                    page.get_by_placeholder(target)
+                    or page.get_by_label(target)
+                    or page.locator(f'input[name="{target}"]')
+                )
+                await locator.first.fill(value)
+                await locator.first.press("Tab")
+
+            elif action == "click":
+                locator = page.get_by_text(target)
+                await locator.first.click()
+
+        except Exception as e:
+            print(f"⚠️ Step failed: {e}")
+
+
+# ✅ STEP 4 — Simple validation (no AI needed)
+def validate(expectation, text):
+    if expectation.lower() in text.lower():
+        return "PASS"
+    return "FAIL"
 
 
 # ✅ MAIN
@@ -150,38 +116,47 @@ async def run_suite():
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
 
-        await page.goto(BASE_URL)
-        await page.wait_for_timeout(3000)
-
-        ui = await extract_ui_elements(page)
-        selectors = analyze_ui(ui)
-
-        if not selectors:
-            print("⚠️ Using fallback selectors")
-            selectors = fallback_selectors()
-
-        print("🧠 Final selectors:", selectors)
-
         for _, row in df.iterrows():
-            print(f"\n🚀 {row['Test case ID']}")
+            test_id = row["Test case ID"]
+            description = row["Description"]
+            expectation = row["Expectation"]
 
-            await page.goto(BASE_URL)
-            await page.wait_for_timeout(2000)
-
-            await perform_login(page, selectors, row["Description"])
+            print(f"\n🚀 {test_id}")
 
             try:
-                await page.wait_for_selector("text=Please enter", timeout=3000)
-            except:
-                pass
+                await page.goto(BASE_URL)
+                await page.wait_for_timeout(3000)
 
-            text = await page.inner_text("body")
+                ui = await extract_ui(page)
 
-            print("📄 PAGE TEXT:", text[:500])  # debug
+                # 🔁 Retry AI
+                actions = {}
+                for i in range(3):
+                    actions = get_actions(description, ui)
+                    if actions.get("steps"):
+                        break
 
-            result = validate_result(row["Expectation"], text)
+                steps = actions.get("steps", [])
 
-            print("👉 RESULT:", result)
+                if not steps:
+                    print("⚠️ AI failed to generate steps")
+                    continue
+
+                await execute_steps(page, steps)
+
+                # wait for validation
+                await page.wait_for_timeout(2000)
+
+                text = await page.inner_text("body")
+
+                print("📄 TEXT:", text[:300])
+
+                result = validate(expectation, text)
+
+                print("👉 RESULT:", result)
+
+            except Exception as e:
+                print(f"❌ ERROR: {e}")
 
         await browser.close()
 
