@@ -9,7 +9,7 @@ from typing import Any, Dict, List
 import pandas as pd
 from playwright.async_api import async_playwright, Page
 
-BASE_URL = "https://trajector.bling-ai.com/trajector/login/"
+BASE_URL = "https://main.d1lrc6o2sgi54h.amplifyapp.com/trajector/login.html"
 EXCEL_PATH = "Trajector Test cases.xlsx"
 SHEET_NAME = "Login"
 ARTIFACTS_DIR = "artifacts"
