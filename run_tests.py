@@ -1,7 +1,5 @@
 import asyncio
 import os
-import json
-import re
 import pandas as pd
 from playwright.async_api import async_playwright
 from langchain_openai import ChatOpenAI
@@ -15,76 +13,54 @@ llm = ChatOpenAI(
     temperature=0
 )
 
-
-# 🔧 JSON extractor
-def extract_json(text):
-    try:
-        match = re.search(r"\{.*\}", text, re.DOTALL)
-        if match:
-            return json.loads(match.group())
-        return {}
-    except:
-        return {}
-
-
-# ✅ STEP 1 — Extract UI
-async def extract_ui(page):
-    return await page.evaluate("""
-    () => {
-        return Array.from(document.querySelectorAll('input, button, a')).map(el => ({
-            tag: el.tagName,
-            text: el.innerText,
-            placeholder: el.placeholder,
-            id: el.id,
-            name: el.name,
-            type: el.type
-        }))
-    }
-    """)
-
-
-# ✅ STEP 2 — AI decides actions
-def get_actions(description, ui):
+# 🧠 AI decides NEXT step
+def get_next_step(description, page_text, history):
     prompt = f"""
-You are an AI QA tester.
+You are controlling a browser.
 
 Test case:
 {description}
 
-UI elements:
-{ui}
+Current page:
+{page_text[:500]}
 
-Decide steps to execute.
+Steps already done:
+{history}
 
-IMPORTANT:
-- Use visible text like "Sign in", "Email"
-- Do NOT use ids like signInBtn
+Decide NEXT step.
 
-Return ONLY JSON:
-
+Return JSON:
 {{
-  "steps": [
-    {{"action": "fill", "target": "email", "value": ""}},
-    {{"action": "fill", "target": "password", "value": ""}},
-    {{"action": "click", "target": "Sign in"}}
-  ]
+  "action": "fill/click/done",
+  "target": "visible text or placeholder",
+  "value": "optional"
 }}
 """
-    res = llm.invoke(prompt)
-    return extract_json(res.content)
+    res = llm.invoke(prompt).content
+
+    import re, json
+    match = re.search(r"\{.*\}", res, re.DOTALL)
+    if match:
+        return json.loads(match.group())
+
+    return {"action": "done"}
 
 
-# ✅ STEP 3 — Smart locator translator
-async def smart_find_and_act(page, action, target, value=""):
-    target_lower = target.lower()
+# 🔧 Smart executor
+async def execute_step(page, step):
+    action = step.get("action")
+    target = step.get("target", "")
+    value = step.get("value", "")
+
+    print(f"⚙️ {action} → {target}")
 
     try:
         if action == "fill":
             locator = (
                 page.get_by_placeholder(target)
                 or page.get_by_label(target)
-                or page.locator(f'input[name*="{target_lower}"]')
-                or page.locator(f'input[id*="{target_lower}"]')
+                or page.locator(f'input[placeholder*="{target}"]')
+                or page.locator("input")
             )
             await locator.first.fill(value)
             await locator.first.press("Tab")
@@ -93,86 +69,60 @@ async def smart_find_and_act(page, action, target, value=""):
             locator = (
                 page.get_by_role("button", name=target)
                 or page.get_by_text(target)
-                or page.locator(f'button[id*="{target_lower}"]')
                 or page.locator("button")
             )
             await locator.first.click()
 
     except Exception as e:
-        print(f"⚠️ Smart action failed: {action} {target} → {e}")
+        print("⚠️ Step failed:", e)
 
 
-# ✅ STEP 4 — Execute steps
-async def execute_steps(page, steps):
-    for step in steps:
-        action = step.get("action")
-        target = step.get("target")
-        value = step.get("value", "")
-
-        print(f"⚙️ {action} → {target}")
-
-        await smart_find_and_act(page, action, target, value)
-
-
-# ✅ STEP 5 — Validation (deterministic)
+# ✅ Validation (deterministic)
 def validate(expectation, text):
-    if expectation.lower().strip() in text.lower():
-        return "PASS"
-    return "FAIL"
+    return "PASS" if expectation.lower() in text.lower() else "FAIL"
 
 
-# ✅ MAIN
+# 🚀 MAIN LOOP
 async def run_suite():
-    df = pd.read_excel(
-        "Trajector Test cases.xlsx",
-        sheet_name="Login",
-        engine="openpyxl"
-    )
+    df = pd.read_excel("Trajector Test cases.xlsx", sheet_name="Login")
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
 
         for _, row in df.iterrows():
-            test_id = row["Test case ID"]
-            description = row["Description"]
-            expectation = row["Expectation"]
+            print(f"\n🚀 {row['Test case ID']}")
 
-            print(f"\n🚀 {test_id}")
+            await page.goto(BASE_URL)
+            await page.wait_for_timeout(2000)
 
-            try:
-                await page.goto(BASE_URL)
-                await page.wait_for_timeout(3000)
+            history = []
 
-                ui = await extract_ui(page)
+            for step_no in range(5):  # limit steps
+                page_text = await page.inner_text("body")
 
-                # 🔁 Retry AI
-                actions = {}
-                for i in range(3):
-                    actions = get_actions(description, ui)
-                    if actions.get("steps"):
-                        break
+                step = get_next_step(
+                    row["Description"],
+                    page_text,
+                    history
+                )
 
-                steps = actions.get("steps", [])
+                if step.get("action") == "done":
+                    break
 
-                if not steps:
-                    print("⚠️ AI failed to generate steps")
-                    continue
+                await execute_step(page, step)
+                history.append(step)
 
-                await execute_steps(page, steps)
+                await page.wait_for_timeout(1000)
 
-                await page.wait_for_timeout(2000)
+            # 🔍 Final state
+            text = await page.inner_text("body")
 
-                text = await page.inner_text("body")
+            print("📄 TEXT:", text[:300])
 
-                print("📄 TEXT:", text[:300])
+            result = validate(row["Expectation"], text)
 
-                result = validate(expectation, text)
-
-                print("👉 RESULT:", result)
-
-            except Exception as e:
-                print(f"❌ ERROR: {e}")
+            print("👉 RESULT:", result)
 
         await browser.close()
 
