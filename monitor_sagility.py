@@ -854,10 +854,10 @@ async def run_monitor():
             pass
 
         print("\n── STAGE 5: Candidate Information")
-       r = await _run_or_skip(
-           lambda: stage5_candidate_info(portal_page, candidate_email),
-           "STAGE_5"
-       )
+        r = await _run_or_skip(
+            lambda: stage5_candidate_info(portal_page, candidate_email),
+            "STAGE_5"
+        )
         if r: _add(r)
 
         print("\n── STAGE 6: Resume Upload")
