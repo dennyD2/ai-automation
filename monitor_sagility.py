@@ -532,7 +532,7 @@ async def stage4_otp_gmail(gmail_context: BrowserContext, candidate_email: str) 
             raise Exception("Could not find Gmail password input")
 
         
-            await gmail_page.keyboard.press("Enter")
+            await gmail_page.get_by_role("button", name=re.compile("next", re.I)).click()
         
             await gmail_page.wait_for_timeout(8000)
 
