@@ -109,6 +109,44 @@ def detect_execution_mode() -> str:
 
     raise Exception(f"Unsupported MODE: {MODE}")
 
+def parse_flow_into_steps(flow_text: str) -> List[Dict[str, str]]:
+    """
+    Convert flow document text into structured executable steps.
+    """
+
+    steps = []
+
+    if not flow_text.strip():
+        return steps
+
+    lines = [line.strip() for line in flow_text.splitlines() if line.strip()]
+
+    for idx, line in enumerate(lines, start=1):
+
+        lower = line.lower()
+
+        action = "observe"
+
+        if any(word in lower for word in ["click", "press", "select", "tick"]):
+            action = "click"
+
+        elif any(word in lower for word in ["enter", "type", "input", "fill"]):
+            action = "input"
+
+        elif any(word in lower for word in ["upload", "attach"]):
+            action = "upload"
+
+        elif any(word in lower for word in ["verify", "validate", "check", "confirm"]):
+            action = "validate"
+
+        steps.append({
+            "step_number": str(idx),
+            "raw": line,
+            "action": action,
+        })
+
+    return steps
+
 # ── AI call (stdlib only, no langchain) ───────────────────────────────────────
 
 async def call_ai(messages: List[Dict]) -> str:
