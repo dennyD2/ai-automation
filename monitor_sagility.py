@@ -436,7 +436,7 @@ async def stage4_otp_gmail(gmail_context: BrowserContext, candidate_email: str) 
         print("\n===== FRAMES =====")
         
         all_inputs = await gmail_page.locator("input").count()
-        print(f"\nTOTAL INPUTS FOUND: {all_inputs}\n"
+        print(f"\nTOTAL INPUTS FOUND: {all_inputs}\n")
               
         for i, frame in enumerate(frames):
             print(f"FRAME {i}: {frame.url}")
