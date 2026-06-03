@@ -199,7 +199,7 @@ def write_report(results: list[StepResult], candidate_email: str, duration_s: fl
           <td style="white-space:nowrap;font-family:monospace;font-size:12px">{r.step_id}</td>
           <td style="font-size:13px">{r.name}</td>
           <td style="font-size:12px">{tag_html}{r.reason or "—"}</td>
-          <td style="font-size:11px;color:#64748b">{r.duration_s:.1f}s</td>
+          <td style="font-size:11px;color:#64748b">{r.duration:.1f}s</td>
           <td style="font-weight:700;color:{"#22c55e" if r.status=="PASS" else "#ef4444"};font-size:16px;text-align:center">{r.status}</td>
           <td style="text-align:center">{sc}</td>
         </tr>"""
