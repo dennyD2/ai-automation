@@ -4,7 +4,7 @@
 # Two isolated browser contexts: Context 1 = Gmail OTP, Context 2 = Candidate Portal
 
 import asyncio
-import json
+import jsonf
 import os
 import re
 import sys
@@ -495,11 +495,86 @@ async def stage4_otp_gmail(gmail_context: BrowserContext, candidate_email: str) 
         if not found_email_input:
             raise Exception("Could not find Gmail email input in any frame")
         
+        print("🔹 Clicking Next after email")
+        
         await gmail_page.get_by_role(
             "button",
             name=re.compile("next", re.I)
         ).click()
-    
+        
+        print("✅ Clicked Next after email")
+        
+        await gmail_page.wait_for_timeout(5000)
+        
+        print(f"🔹 Current URL after Next: {gmail_page.url}")
+        
+        body = await gmail_page.evaluate(
+            "() => document.body.innerText"
+        )
+        
+        print("\n===== PAGE AFTER EMAIL NEXT =====")
+        print(body[:4000])
+        print("=================================\n")
+        
+        print("🔹 Looking for password field")
+        
+        password_input = gmail_page.locator(
+            'input[type="password"]'
+        ).first
+        
+        await password_input.wait_for(timeout=30000)
+        
+        print("✅ Password field appeared")
+        
+        await password_input.fill(GMAIL_PASSWORD)
+        
+        print("✅ Password entered")
+        
+        await gmail_page.get_by_role(
+            "button",
+            name=re.compile("next", re.I)
+        ).click()
+        
+        print("✅ Clicked Next after password")
+        
+        await gmail_page.wait_for_timeout(8000)
+        
+        print(f"🔹 URL after password submit: {gmail_page.url}")
+        
+        body = await gmail_page.evaluate(
+            "() => document.body.innerText"
+        )
+        
+        print("\n===== PAGE AFTER PASSWORD SUBMIT =====")
+        print(body[:4000])
+        print("======================================\n")
+        
+        if (
+            "inbox" not in body.lower()
+            and "compose" not in body.lower()
+            and "primary" not in body.lower()
+        ):
+        
+            print("❌ Gmail inbox keywords not found")
+        
+            step6.fail(
+                "[GMAIL_FAILURE]",
+                "Gmail login failed — inbox not accessible after login"
+            )
+        
+            step6.screenshot = await screenshot(
+                gmail_page,
+                "STEP_06_fail"
+            )
+        
+            step6.duration = time.time() - t0
+        
+            await gmail_page.close()
+        
+            return step6, otp
+        
+        print("✅ Gmail logged in")
+
         await gmail_page.wait_for_url(
             re.compile(r"challenge|pwd|password", re.I),
             timeout=30000
