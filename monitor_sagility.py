@@ -424,7 +424,7 @@ async def stage4_otp_gmail(gmail_context: BrowserContext, candidate_email: str) 
     otp = ""
 
     try:
-        await gmail_page.goto("https://mail.google.com", wait_until="domcontentloaded", timeout=TIMEOUT_WEBSITE)
+        await gmail_page.goto("https://accounts.google.com/v3/signin/identifier?continue=https%3A%2F%2Fmail.google.com%2Fmail%2F%3Fservice%3Dmail%26flowName%3DGlifWebSignIn%26flowEntry%3DAccountChooser%26ec%3Dasw-gmail-globalnav-signin&dsh=S1965091973%3A1780525764296169&uj=gafb-gmail_asw-globalnav-en&flowName=GlifWebSignIn&flowEntry=ServiceLogin&ifkv=AWa2Pav-Os8tgGnE0ORb4dczHHVY9X2djfO9hyiWHdkYc1sEV9F1aa_D3DbvdX_o_bnLlDY5br-NHA", wait_until="domcontentloaded", timeout=TIMEOUT_WEBSITE)
         # Check if already logged in
         body = await gmail_page.evaluate("() => document.body.innerText")
         if "inbox" in body.lower() or "compose" in body.lower() or "primary" in body.lower():
