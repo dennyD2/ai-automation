@@ -15,6 +15,36 @@ from typing import Any, Dict, List
 import pandas as pd
 from playwright.async_api import async_playwright, Page
 
+# ── Config loader ────────────────────────────────────────────────────────────
+
+def _load_company_config() -> Any:
+    import importlib
+
+    # CLI argument takes priority
+    company = sys.argv[1].lower() if len(sys.argv) > 1 else ""
+
+    # Fallback to env var only if CLI arg missing
+    if not company:
+        company = os.getenv("COMPANY", "").lower()
+
+    if not company:
+        print("❌ No company specified.")
+        print("Usage:")
+        print("  python run_tests.py sagility")
+        print("  python run_tests.py trajector")
+        sys.exit(1)
+
+    module_name = f"config_{company}"
+
+    try:
+        cfg = importlib.import_module(module_name)
+        print(f"⚙️ Loaded config: {module_name}.py")
+        return cfg
+
+    except ModuleNotFoundError:
+        print(f"❌ Config file not found: {module_name}.py")
+        sys.exit(1)
+        
 # ── Config ────────────────────────────────────────────────────────────────────
 
 _cfg = _load_company_config()
@@ -32,11 +62,6 @@ MODEL          = "deepseek-chat"
 API_URL        = "https://api.deepseek.com/v1/chat/completions"
 API_KEY        = os.getenv("DEEPSEEK_API_KEY", "")
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK", "")
-
-# ── Scope: control exactly what to run ───────────────────────────────────────
-SCOPE: Dict[str, Any] = {
-    "Forgot Password": None,
-}   # ← edit this to control what runs
 
 # ── Load flow document (DOCX) if present ─────────────────────────────────────
 
