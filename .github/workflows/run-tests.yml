@@ -39,8 +39,9 @@ jobs:
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           DISCORD_WEBHOOK:  ${{ secrets.DISCORD_WEBHOOK }}
-        run: python run_tests.py ${{ github.event.inputs.company || 'sagility' }}
-
+        #run: python run_tests.py ${{ github.event.inputs.company || 'sagility' }}
+        run: python monitor_sagility.py
+        
       - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
