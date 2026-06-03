@@ -460,7 +460,6 @@ async def stage4_otp_gmail(gmail_context: BrowserContext, candidate_email: str) 
         
         print("=================================\n")
         
-```python
 # Check if already logged in
         body = await gmail_page.evaluate("() => document.body.innerText")
         
