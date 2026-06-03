@@ -431,13 +431,21 @@ async def stage4_otp_gmail(gmail_context: BrowserContext, candidate_email: str) 
             print("      ✅  Gmail already logged in")
         else:
             # Fill email
-            await gmail_page.get_by_label(re.compile("email|phone", re.I)).first.fill(GMAIL_EMAIL)
-            await gmail_page.get_by_role("button", name=re.compile("next", re.I)).first.click()
-            await gmail_page.wait_for_timeout(2000)
-            # Fill password
-            await gmail_page.get_by_label(re.compile("password", re.I)).first.fill(GMAIL_PASSWORD)
-            await gmail_page.get_by_role("button", name=re.compile("next", re.I)).first.click()
-            await gmail_page.wait_for_timeout(3000)
+            await gmail_page.wait_for_selector('input[type="email"]', timeout=30000)
+
+            await gmail_page.locator('input[type="email"]').fill(GMAIL_EMAIL)
+            
+            await gmail_page.keyboard.press("Enter")
+            
+            await gmail_page.wait_for_timeout(4000)
+            
+            await gmail_page.wait_for_selector('input[type="password"]', timeout=30000)
+            
+            await gmail_page.locator('input[type="password"]').fill(GMAIL_PASSWORD)
+            
+            await gmail_page.keyboard.press("Enter")
+            
+            await gmail_page.wait_for_timeout(8000)
 
             body = await gmail_page.evaluate("() => document.body.innerText")
             if "inbox" not in body.lower() and "compose" not in body.lower() and "primary" not in body.lower():
