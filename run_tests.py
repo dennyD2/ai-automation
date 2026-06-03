@@ -18,8 +18,8 @@ from playwright.async_api import async_playwright, Page
 # ── Config ────────────────────────────────────────────────────────────────────
 
 BASE_URL       = os.getenv("BASE_URL",   "https://hire-qa.bling-ai.com/sagility?reqId=REQ-017239&country=%27US%27&location=%27TX%27&source=SOURCE-3-125&profileID=IND007684")
-EXCEL_PATH     = os.getenv("EXCEL_PATH", "Trajector Test cases.xlsx")
-#FLOW_DOC_PATH  = os.getenv("FLOW_DOC_PATH", "Flow document.docx")   # optional DOCX flow reference
+#EXCEL_PATH     = os.getenv("EXCEL_PATH", "Trajector Test cases.xlsx")
+FLOW_DOC_PATH  = os.getenv("FLOW_DOC_PATH", "Flow document.docx")   # optional DOCX flow reference
 ARTIFACTS      = "artifacts"
 MAX_STEPS      = 15        # increased for flow-driven tests
 MAX_RETRIES    = 2         # retries for flaky failures
