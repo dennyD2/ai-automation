@@ -523,14 +523,14 @@ async def stage4_otp_gmail(gmail_context: BrowserContext, candidate_email: str) 
                 except Exception:
                     pass
         
-            if password_found:
-                break
+        if password_found:
+            break
         
-            await gmail_page.wait_for_timeout(1000)
+        await gmail_page.wait_for_timeout(1000)
         
         if not password_found:
             raise Exception("Could not find Gmail password input")
-
+        
         await gmail_page.get_by_role(
             "button",
             name=re.compile("next", re.I)
@@ -542,23 +542,39 @@ async def stage4_otp_gmail(gmail_context: BrowserContext, candidate_email: str) 
         )
         
         await gmail_page.wait_for_load_state("networkidle")
-
+        
         await gmail_page.wait_for_timeout(5000)
-
+        
         print(f"✅ Gmail moved to password page: {gmail_page.url}")
-   
-        print(f"✅ Gmail moved to password page: {gmail_page.url}")
-            await gmail_page.wait_for_timeout(8000)
+        
+        await gmail_page.wait_for_timeout(8000)
+        
+        body = await gmail_page.evaluate("() => document.body.innerText")
+        
+        if (
+            "inbox" not in body.lower()
+            and "compose" not in body.lower()
+            and "primary" not in body.lower()
+        ):
+            step6.fail(
+                "[GMAIL_FAILURE]",
+                "Gmail login failed — inbox not accessible after login"
+            )
+        
+            step6.screenshot = await screenshot(
+                gmail_page,
+                "STEP_06_fail"
+            )
+        
+            step6.duration = time.time() - t0
+        
+            await gmail_page.close()
+        
+            return step6, otp
+        
+        print("      ✅  Gmail logged in")
 
-            body = await gmail_page.evaluate("() => document.body.innerText")
-            if "inbox" not in body.lower() and "compose" not in body.lower() and "primary" not in body.lower():
-                step6.fail("[GMAIL_FAILURE]", "Gmail login failed — inbox not accessible after login")
-                step6.screenshot = await screenshot(gmail_page, "STEP_06_fail")
-                step6.duration = time.time() - t0
-                await gmail_page.close()
-                return step6, otp
-            print("      ✅  Gmail logged in")
-    except Exception as e:
+
         step6.fail("[GMAIL_FAILURE]", f"Gmail login error: {str(e)[:200]}")
         step6.screenshot = await screenshot(gmail_page, "STEP_06_fail")
         step6.duration = time.time() - t0
