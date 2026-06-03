@@ -17,10 +17,14 @@ from playwright.async_api import async_playwright, Page
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-BASE_URL        = os.getenv("BASE_URL",       _cfg.BASE_URL)
-EXCEL_PATH      = os.getenv("EXCEL_PATH",     _cfg.EXCEL_PATH)
-FLOW_DOC_PATH   = os.getenv("FLOW_DOC_PATH",  _cfg.FLOW_DOC_PATH)
+_cfg = _load_company_config()
+
+COMPANY_NAME  = _cfg.COMPANY
+BASE_URL      = _cfg.BASE_URL
+EXCEL_PATH    = _cfg.EXCEL_PATH
+FLOW_DOC_PATH = _cfg.FLOW_DOC_PATH
 SCOPE: Dict[str, Any] = _cfg.SCOPE
+
 ARTIFACTS      = "artifacts"
 MAX_STEPS      = 15        # increased for flow-driven tests
 MAX_RETRIES    = 2         # retries for flaky failures
