@@ -20,7 +20,7 @@ from playwright.async_api import async_playwright, BrowserContext, Page
 PORTAL_URL      = "https://hire-qa.bling-ai.com/sagility?reqId=REQ-017239&country='US'&location='TX'&source=SOURCE-3-125&profileID=IND007053"
 GMAIL_EMAIL     = "bling2cloud@gmail.com"
 GMAIL_PASSWORD  = "Bling@12345"
-DISCORD_WEBHOOK = os.getenv("https://discord.com/api/webhooks/1511790280502808686/i2gq9pIW5rogs0Us8zJVa_FIjdeBDBe2nUmUcCjNHZiPWY6jvp88Z-tnme7qhmKSfy3Y", "")
+DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK", "")
 ARTIFACTS_DIR   = "artifacts"
 
 # Candidate test data (from flow document)
@@ -248,7 +248,8 @@ async def stage1_portal_launch(page: Page, candidate_email: str) -> StepResult:
     try:
         await page.goto(PORTAL_URL, wait_until="domcontentloaded", timeout=TIMEOUT_WEBSITE)
         await page.wait_for_timeout(5000)
-        await page.wait_for_function("""() => document.body && document.body.innerText.trim().length > 30""", timeout=15000)
+        await page.wait_for_load_state("networkidle")
+        await page.wait_for_timeout(5000)
         # check blank / infinite loader
         health = await detect_blank_or_spinner(page)
         if health:
@@ -827,11 +828,15 @@ async def run_monitor():
         _add(r)
 
         print("\n── STAGE 2: Consent")
-        r = await _run_or_skip(lambda: stage2_consent(portal_page, candidate_email),"STAGE_2")
+        r = await _run_or_skip(
+            lambda: stage2_consent(portal_page, candidate_email),"STAGE_2")
         if r: _add(r)
 
         print("\n── STAGE 3: Email Submission (Step 4 = email generation — done in code)")
-        r = await _run_or_skip(lambda: stage3_email(portal_page, candidate_email), "STEP_05"))
+        r = await _run_or_skip(
+            lambda: stage3_email(portal_page, candidate_email),
+            "STEP_03"
+        )
         if r: _add(r)
 
         print("\n── STAGE 4: Gmail OTP Retrieval")
@@ -849,18 +854,23 @@ async def run_monitor():
             pass
 
         print("\n── STAGE 5: Candidate Information")
-        r = await _run_or_skip(lambda: stage5_candidate_info(portal_page, candidate_email), "STAGE_5"))
+       r = await _run_or_skip(
+           lambda: stage5_candidate_info(portal_page, candidate_email),
+           "STAGE_5"
+       )
         if r: _add(r)
 
         print("\n── STAGE 6: Resume Upload")
         r = await _run_or_skip(
-            lambda: stage6_resume(portal_page, candidate_email), "STAGE_6")
+            lambda: stage6_resume(portal_page, candidate_email),
+            "STAGE_6"
         )
         if r: _add(r)
 
         print("\n── STAGE 7: Marketing Video → Pre-Screening")
         r = await _run_or_skip(
-            lambda: stage7_video(portal_page, candidate_email), "STAGE_7")
+            lambda: stage7_video(portal_page, candidate_email),
+            "STAGE_7"
         )
         if r: _add(r)
 
