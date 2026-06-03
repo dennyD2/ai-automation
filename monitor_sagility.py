@@ -460,48 +460,55 @@ async def stage4_otp_gmail(gmail_context: BrowserContext, candidate_email: str) 
         
         print("=================================\n")
         
-        # Check if already logged in
+```python
+# Check if already logged in
         body = await gmail_page.evaluate("() => document.body.innerText")
+        
         if "inbox" in body.lower() or "compose" in body.lower() or "primary" in body.lower():
+        
             print("      ✅  Gmail already logged in")
+        
         else:
-            
-        # Fill email
-
-        found_email_input = False
         
-        for frame in gmail_page.frames:
+            # Fill email
         
-            try:
-                email_input = frame.locator('input[type="email"]').first
+            found_email_input = False
         
-                if await email_input.count() > 0:
+            for frame in gmail_page.frames:
         
-                    print(f"✅ Found email input inside frame: {frame.url}")
+                try:
         
-                    await email_input.fill(GMAIL_EMAIL)
+                    email_input = frame.locator('input[type="email"]').first
         
-                    found_email_input = True
+                    if await email_input.count() > 0:
         
-                    break
+                        print(f"✅ Found email input inside frame: {frame.url}")
         
-            except Exception:
-                pass
+                        await email_input.fill(GMAIL_EMAIL)
         
-        if not found_email_input:
-            raise Exception("Could not find Gmail email input in any frame")
-            
+                        found_email_input = True
+        
+                        break
+        
+                except Exception:
+                    pass
+        
+            if not found_email_input:
+                raise Exception("Could not find Gmail email input in any frame")
+        
             await gmail_page.keyboard.press("Enter")
-            
+        
             await gmail_page.wait_for_timeout(4000)
-            
+        
             await gmail_page.wait_for_selector('input[type="password"]', timeout=30000)
-            
+        
             await gmail_page.locator('input[type="password"]').fill(GMAIL_PASSWORD)
-            
+        
             await gmail_page.keyboard.press("Enter")
-            
+        
             await gmail_page.wait_for_timeout(8000)
+```
+
 
             body = await gmail_page.evaluate("() => document.body.innerText")
             if "inbox" not in body.lower() and "compose" not in body.lower() and "primary" not in body.lower():
