@@ -543,12 +543,10 @@ async def stage4_otp_gmail(gmail_context: BrowserContext, candidate_email: str) 
         
         await gmail_page.wait_for_load_state("networkidle")
 
-await gmail_page.wait_for_timeout(5000)
+        await gmail_page.wait_for_timeout(5000)
 
-print(f"✅ Gmail moved to password page: {gmail_page.url}")
-```
-
-        
+        print(f"✅ Gmail moved to password page: {gmail_page.url}")
+   
         print(f"✅ Gmail moved to password page: {gmail_page.url}")
             await gmail_page.wait_for_timeout(8000)
 
