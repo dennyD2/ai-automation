@@ -531,16 +531,23 @@ async def stage4_otp_gmail(gmail_context: BrowserContext, candidate_email: str) 
         if not password_found:
             raise Exception("Could not find Gmail password input")
 
+        await gmail_page.get_by_role(
+            "button",
+            name=re.compile("next", re.I)
+        ).click()
         
-            await gmail_page.get_by_role("button", name=re.compile("next", re.I)).click()
-            await gmail_page.wait_for_url(
-                re.compile(r"challenge|pwd|password", re.I),
-                timeout=30000
-            )
-            
-            await gmail_page.wait_for_load_state("networkidle")
+        await gmail_page.wait_for_url(
+            re.compile(r"challenge|pwd|password", re.I),
+            timeout=30000
+        )
         
-        await gmail_page.wait_for_timeout(5000)
+        await gmail_page.wait_for_load_state("networkidle")
+
+await gmail_page.wait_for_timeout(5000)
+
+print(f"✅ Gmail moved to password page: {gmail_page.url}")
+```
+
         
         print(f"✅ Gmail moved to password page: {gmail_page.url}")
             await gmail_page.wait_for_timeout(8000)
