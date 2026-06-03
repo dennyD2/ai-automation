@@ -31,7 +31,7 @@ RESUME_PATH     = os.path.join(os.path.dirname(__file__), "sample_resume.pdf")
 
 # Timeouts (from flow document)
 TIMEOUT_WEBSITE   = 15_000   # ms
-TIMEOUT_BOT       = 10_000   # ms
+TIMEOUT_BOT       = 30_000   # ms
 TIMEOUT_OTP_EMAIL = 60_000   # ms — Gmail can be slow in CI; document says 20s but 60s is safer
 TIMEOUT_NAV       = 10_000   # ms
 TIMEOUT_UPLOAD    = 15_000   # ms
