@@ -401,9 +401,8 @@ async def stage3_email(page: Page, candidate_email: str) -> StepResult:
                 print("\n===== AFTER EMAIL SUBMISSION =====")
                 print(body[:4000])
                 print("=================================\n")
-            
-                print("      ⚠️  Bot did not explicitly request OTP")
-                print("      ⚠️  Proceeding with Gmail OTP retrieval anyway")
+                print("      ⚠️  Bot did not explicitly ask for email")
+                print("      ⚠️  Continuing anyway")
             
             else:
                 print("      ✅  Bot sent OTP request")
@@ -474,7 +473,7 @@ async def stage4_otp_gmail(gmail_context: BrowserContext, candidate_email: str) 
             for i in range(min(count, 5)):
                 try:
                     row_text = await email_rows.nth(i).inner_text()
-                    if any(kw in row_text.lower() for kw in ["otp", "verification", "code", "sagility", "bling"]):
+                    if candidate_email.lower() in row_text.lower():
                         await email_rows.nth(i).click()
                         await gmail_page.wait_for_timeout(1500)
                         body_text = await gmail_page.evaluate("() => document.body.innerText")
