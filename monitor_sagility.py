@@ -20,7 +20,7 @@ from playwright.async_api import async_playwright, BrowserContext, Page
 PORTAL_URL      = "https://hire-qa.bling-ai.com/sagility?reqId=REQ-017239&country='US'&location='TX'&source=SOURCE-3-125&profileID=IND007053"
 GMAIL_EMAIL     = "bling2cloud@gmail.com"
 GMAIL_PASSWORD  = "Bling@12345"
-DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK", "")
+DISCORD_WEBHOOK = os.getenv("https://discord.com/api/webhooks/1511790280502808686/i2gq9pIW5rogs0Us8zJVa_FIjdeBDBe2nUmUcCjNHZiPWY6jvp88Z-tnme7qhmKSfy3Y", "")
 ARTIFACTS_DIR   = "artifacts"
 
 # Candidate test data (from flow document)
