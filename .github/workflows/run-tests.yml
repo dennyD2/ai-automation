@@ -1,0 +1,50 @@
+name: AI Agentic Test Runner — Production Monitor
+
+on:
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: '0 */2 * * *'   # every 2 hours — production monitoring
+  workflow_dispatch:
+    inputs:
+      company:
+        description: 'Which company to test'
+        required: true
+        default: 'sagility'
+        type: choice
+        options:
+          - sagility
+          - trajector
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pandas openpyxl playwright python-docx
+          python -m playwright install chromium --with-deps
+
+      - name: Run Tests
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          DISCORD_WEBHOOK:  ${{ secrets.DISCORD_WEBHOOK }}
+        run: python run_tests.py ${{ github.event.inputs.company || 'sagility' }}
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.event.inputs.company || 'sagility' }}
+          path: artifacts/
+          retention-days: 30
