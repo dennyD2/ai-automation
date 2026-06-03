@@ -432,7 +432,16 @@ async def stage4_otp_gmail(gmail_context: BrowserContext, candidate_email: str) 
         
         print("\nPage title:")
         print(await gmail_page.title())
+        frames = gmail_page.frames
+        print("\n===== FRAMES =====")
         
+        all_inputs = await gmail_page.locator("input").count()
+        print(f"\nTOTAL INPUTS FOUND: {all_inputs}\n"
+              
+        for i, frame in enumerate(frames):
+            print(f"FRAME {i}: {frame.url}")
+        
+        print("==================\n")
         await gmail_page.screenshot(path="artifacts/gmail_debug.png")
         
         body_text = await gmail_page.evaluate("() => document.body.innerText")
@@ -456,12 +465,31 @@ async def stage4_otp_gmail(gmail_context: BrowserContext, candidate_email: str) 
         if "inbox" in body.lower() or "compose" in body.lower() or "primary" in body.lower():
             print("      ✅  Gmail already logged in")
         else:
-            # Fill email
-            email_input = gmail_page.locator('input[type="email"]').first
-
-            await email_input.wait_for(timeout=30000)
             
-            await email_input.fill(GMAIL_EMAIL)
+        # Fill email
+
+        found_email_input = False
+        
+        for frame in gmail_page.frames:
+        
+            try:
+                email_input = frame.locator('input[type="email"]').first
+        
+                if await email_input.count() > 0:
+        
+                    print(f"✅ Found email input inside frame: {frame.url}")
+        
+                    await email_input.fill(GMAIL_EMAIL)
+        
+                    found_email_input = True
+        
+                    break
+        
+            except Exception:
+                pass
+        
+        if not found_email_input:
+            raise Exception("Could not find Gmail email input in any frame")
             
             await gmail_page.keyboard.press("Enter")
             
