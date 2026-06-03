@@ -506,8 +506,6 @@ async def stage4_otp_gmail(gmail_context: BrowserContext, candidate_email: str) 
             await gmail_page.keyboard.press("Enter")
         
             await gmail_page.wait_for_timeout(8000)
-```
-
 
             body = await gmail_page.evaluate("() => document.body.innerText")
             if "inbox" not in body.lower() and "compose" not in body.lower() and "primary" not in body.lower():
