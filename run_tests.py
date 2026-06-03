@@ -842,4 +842,16 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+
+    if MODE == "xlsx":
+        print(f"🚀 Running XLSX testcase mode for {COMPANY_NAME}")
+        asyncio.run(main())
+
+    elif MODE == "flow":
+        print(f"🚀 Running FLOW mode for {COMPANY_NAME}")
+
+        import monitor_sagility
+        asyncio.run(monitor_sagility.run_monitor())
+
+    else:
+        raise Exception(f"Unknown MODE: {MODE}")
