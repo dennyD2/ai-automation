@@ -533,12 +533,12 @@ async def stage4_otp_gmail(gmail_context: BrowserContext, candidate_email: str) 
 
         
             await gmail_page.get_by_role("button", name=re.compile("next", re.I)).click()
-        await gmail_page.wait_for_url(
-            re.compile(r"challenge|pwd|password", re.I),
-            timeout=30000
-        )
-        
-        await gmail_page.wait_for_load_state("networkidle")
+            await gmail_page.wait_for_url(
+                re.compile(r"challenge|pwd|password", re.I),
+                timeout=30000
+            )
+            
+            await gmail_page.wait_for_load_state("networkidle")
         
         await gmail_page.wait_for_timeout(5000)
         
