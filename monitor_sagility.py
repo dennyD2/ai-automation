@@ -376,6 +376,11 @@ async def stage3_email(page: Page, candidate_email: str) -> StepResult:
                 if await loc.count() > 0:
                     await loc.first.fill(candidate_email)
                     await loc.first.press("Enter")
+                    await page.wait_for_timeout(5000)
+                    body = await page.evaluate("() => document.body.innerText")
+                    print("\n===== PAGE AFTER EMAIL SUBMISSION =====")
+                    print(body[:3000])
+                    print("=======================================\n")
                     filled = True
                     break
             except Exception:
