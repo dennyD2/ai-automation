@@ -499,9 +499,38 @@ async def stage4_otp_gmail(gmail_context: BrowserContext, candidate_email: str) 
         
             await gmail_page.wait_for_timeout(4000)
         
-            await gmail_page.wait_for_selector('input[type="password"]', timeout=30000)
         
-            await gmail_page.locator('input[type="password"]').fill(GMAIL_PASSWORD)
+        password_found = False
+        
+        for _ in range(30):
+        
+            for frame in gmail_page.frames:
+        
+                try:
+        
+                    password_input = frame.locator('input[type="password"]').first
+        
+                    if await password_input.count() > 0:
+        
+                        print(f"✅ Found password input inside frame: {frame.url}")
+        
+                        await password_input.fill(GMAIL_PASSWORD)
+        
+                        password_found = True
+        
+                        break
+        
+                except Exception:
+                    pass
+        
+            if password_found:
+                break
+        
+            await gmail_page.wait_for_timeout(1000)
+        
+        if not password_found:
+            raise Exception("Could not find Gmail password input")
+
         
             await gmail_page.keyboard.press("Enter")
         
