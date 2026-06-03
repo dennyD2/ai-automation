@@ -17,7 +17,7 @@ from playwright.async_api import async_playwright, BrowserContext, Page
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
-PORTAL_URL      = "https://hire-qa.bling-ai.com/sagility"
+PORTAL_URL      = "https://hire-qa.bling-ai.com/sagility?reqId=REQ-017239&country='US'&location='TX'&source=SOURCE-3-125&profileID=IND007053"
 GMAIL_EMAIL     = "bling2cloud@gmail.com"
 GMAIL_PASSWORD  = "Bling@12345"
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK", "")
