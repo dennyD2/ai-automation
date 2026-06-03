@@ -17,9 +17,10 @@ from playwright.async_api import async_playwright, Page
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-BASE_URL       = os.getenv("BASE_URL",   "https://main.d1lrc6o2sgi54h.amplifyapp.com/trajector/login.html")
-EXCEL_PATH     = os.getenv("EXCEL_PATH", "Trajector Test cases.xlsx")
-FLOW_DOC_PATH  = os.getenv("FLOW_DOC_PATH", "Flow document.docx")   # optional DOCX flow reference
+BASE_URL        = os.getenv("BASE_URL",       _cfg.BASE_URL)
+EXCEL_PATH      = os.getenv("EXCEL_PATH",     _cfg.EXCEL_PATH)
+FLOW_DOC_PATH   = os.getenv("FLOW_DOC_PATH",  _cfg.FLOW_DOC_PATH)
+SCOPE: Dict[str, Any] = _cfg.SCOPE
 ARTIFACTS      = "artifacts"
 MAX_STEPS      = 15        # increased for flow-driven tests
 MAX_RETRIES    = 2         # retries for flaky failures
