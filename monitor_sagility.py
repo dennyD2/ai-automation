@@ -247,6 +247,8 @@ async def stage1_portal_launch(page: Page, candidate_email: str) -> StepResult:
     t0 = time.time()
     try:
         await page.goto(PORTAL_URL, wait_until="domcontentloaded", timeout=TIMEOUT_WEBSITE)
+        await page.wait_for_timeout(5000)
+        await page.wait_for_function("""() => document.body && document.body.innerText.trim().length > 30""", timeout=15000)
         # check blank / infinite loader
         health = await detect_blank_or_spinner(page)
         if health:
@@ -809,14 +811,14 @@ async def run_monitor():
                 if s.status == "FAIL" and not failed_step:
                     failed_step = s
 
-        async def _run_or_skip(coro, label: str):
+        async def _run_or_skip(coro_factory, label: str):
             """Run stage. If previous stage already failed, emit SKIP for this stage."""
             if failed_step:
                 skip = StepResult(label, f"Skipped — previous failure in {failed_step.step_id}")
                 skip.status = "SKIP"
                 all_results.append(skip)
                 return None
-            return await coro
+            return await coro_factory()
 
         # ── Execute all stages ─────────────────────────────────────────────────
 
@@ -825,11 +827,11 @@ async def run_monitor():
         _add(r)
 
         print("\n── STAGE 2: Consent")
-        r = await _run_or_skip(stage2_consent(portal_page, candidate_email), "STAGE_2")
+        r = await _run_or_skip(lambda: stage2_consent(portal_page, candidate_email),"STAGE_2")
         if r: _add(r)
 
         print("\n── STAGE 3: Email Submission (Step 4 = email generation — done in code)")
-        r = await _run_or_skip(stage3_email(portal_page, candidate_email), "STEP_05")
+        r = await _run_or_skip(lambda: stage3_email(portal_page, candidate_email), "STEP_05"))
         if r: _add(r)
 
         print("\n── STAGE 4: Gmail OTP Retrieval")
@@ -847,15 +849,19 @@ async def run_monitor():
             pass
 
         print("\n── STAGE 5: Candidate Information")
-        r = await _run_or_skip(stage5_candidate_info(portal_page, candidate_email), "STAGE_5")
+        r = await _run_or_skip(lambda: stage5_candidate_info(portal_page, candidate_email), "STAGE_5"))
         if r: _add(r)
 
         print("\n── STAGE 6: Resume Upload")
-        r = await _run_or_skip(stage6_resume(portal_page, candidate_email), "STAGE_6")
+        r = await _run_or_skip(
+            lambda: stage6_resume(portal_page, candidate_email), "STAGE_6")
+        )
         if r: _add(r)
 
         print("\n── STAGE 7: Marketing Video → Pre-Screening")
-        r = await _run_or_skip(stage7_video(portal_page, candidate_email), "STAGE_7")
+        r = await _run_or_skip(
+            lambda: stage7_video(portal_page, candidate_email), "STAGE_7")
+        )
         if r: _add(r)
 
         await browser.close()
