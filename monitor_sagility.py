@@ -340,18 +340,13 @@ async def stage2_consent(page: Page, candidate_email: str) -> list[StepResult]:
             # Wait for bot to ask for email
             appeared = await wait_for_bot_text(page, ["email", "enter your email", "please provide"], TIMEOUT_BOT)
             if not appeared:
-            
-                body = await page.evaluate("() => document.body.innerText")
-            
-                print("\n===== AFTER EMAIL SUBMISSION =====")
-                print(body[:4000])
-                print("=================================\n")
-            
-                print("      ⚠️  Bot did not explicitly request OTP")
-                print("      ⚠️  Proceeding with Gmail OTP retrieval anyway")
-            
+                step3.fail(
+                    "[BOT_NO_RESPONSE]",
+                    "Bot did not ask for email after clicking Start My Application"
+                )
+                step3.screenshot = await screenshot(page, "STEP_03_fail")
             else:
-                print("      ✅  Bot sent OTP request")
+                print("      ✅  Bot requested email")
     except Exception as e:
         step3.fail("[NAV_BROKEN]", str(e)[:200])
         step3.screenshot = await screenshot(page, "STEP_03_fail")
@@ -400,13 +395,16 @@ async def stage3_email(page: Page, candidate_email: str) -> StepResult:
                 ["otp", "verification code", "code sent", "check your email", "verify"],
                 TIMEOUT_BOT
             )
-            if not appeared:
-                health = await detect_blank_or_spinner(page)
-                step.fail(
-                    health or "[BOT_NO_RESPONSE]",
-                    "Bot did not request OTP after email submission"
-                )
-                step.screenshot = await screenshot(page, "STEP_05_fail")
+           if not appeared:
+                body = await page.evaluate("() => document.body.innerText")
+            
+                print("\n===== AFTER EMAIL SUBMISSION =====")
+                print(body[:4000])
+                print("=================================\n")
+            
+                print("      ⚠️  Bot did not explicitly request OTP")
+                print("      ⚠️  Proceeding with Gmail OTP retrieval anyway")
+            
             else:
                 print("      ✅  Bot sent OTP request")
     except Exception as e:
