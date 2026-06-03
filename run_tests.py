@@ -95,8 +95,7 @@ def load_flow_document(path: str) -> str:
         return ""
 
 FLOW_DOCUMENT_TEXT = load_flow_document(FLOW_DOC_PATH)
-FLOW_STEPS = parse_flow_into_steps(FLOW_DOCUMENT_TEXT)
-FLOW_SUMMARY = summarize_flow(FLOW_STEPS)
+
 def detect_execution_mode() -> str:
     """
     Decide which execution mode to run.
@@ -181,7 +180,8 @@ def summarize_flow(steps: List[Dict[str, str]]) -> Dict[str, int]:
             summary["observation_steps"] += 1
 
     return summary
-
+    FLOW_STEPS = parse_flow_into_steps(FLOW_DOCUMENT_TEXT)
+    FLOW_SUMMARY = summarize_flow(FLOW_STEPS)
 # ── AI call (stdlib only, no langchain) ───────────────────────────────────────
 async def execute_flow_steps(flow_steps: List[Dict[str, str]]):
     """
@@ -254,7 +254,7 @@ async def page_snapshot(page: Page) -> Dict:
             }
             const inputs = Array.from(
                 document.querySelectorAll('input:not([type=hidden]),textarea,select')
-            ).filter(e => e.xtoffsetParent !== null).map(e => ({
+            ).filter(e => e.offsetParent !== null).map(e => ({
                 type:        e.type || e.tagName.toLowerCase(),
                 placeholder: (e.placeholder || '').trim(),
                 label:       labelFor(e),
@@ -950,33 +950,43 @@ async def main():
 
 
 if __name__ == "__main__":
+async def run_flow_mode():
 
+    print(f"🚀 Running FLOW mode for {COMPANY_NAME}")
+
+    print("\n📄 Parsed FLOW steps:\n")
+
+    print("📊 FLOW SUMMARY")
+    print(f"   Total steps      : {FLOW_SUMMARY['total_steps']}")
+    print(f"   Click actions    : {FLOW_SUMMARY['click_steps']}")
+    print(f"   Input actions    : {FLOW_SUMMARY['input_steps']}")
+    print(f"   Upload actions   : {FLOW_SUMMARY['upload_steps']}")
+    print(f"   Validation steps : {FLOW_SUMMARY['validation_steps']}")
+    print(f"   Observation only : {FLOW_SUMMARY['observation_steps']}")
+    print()
+
+    for step in FLOW_STEPS[:20]:
+        print(
+            f"STEP {step['step_number']} | "
+            f"ACTION={step['action']} | "
+            f"{step['raw']}"
+        )
+
+    print()
+
+    await execute_flow_steps(FLOW_STEPS)
+
+    import importlib
+
+    runner_module = importlib.import_module(_cfg.FLOW_RUNNER)
+
+    await runner_module.run_monitor()
     if MODE == "xlsx":
         print(f"🚀 Running XLSX testcase mode for {COMPANY_NAME}")
         asyncio.run(main())
 
     elif MODE == "flow":
-        print(f"🚀 Running FLOW mode for {COMPANY_NAME}")
-        import importlib
-        print("\n📄 Parsed FLOW steps:\n")
-        print("📊 FLOW SUMMARY")
-        print(f"   Total steps      : {FLOW_SUMMARY['total_steps']}")
-        print(f"   Click actions    : {FLOW_SUMMARY['click_steps']}")
-        print(f"   Input actions    : {FLOW_SUMMARY['input_steps']}")
-        print(f"   Upload actions   : {FLOW_SUMMARY['upload_steps']}")
-        print(f"   Validation steps : {FLOW_SUMMARY['validation_steps']}")
-        print(f"   Observation only : {FLOW_SUMMARY['observation_steps']}")
-        print()
-        for step in FLOW_STEPS[:20]:
-            print(
-                f"STEP {step['step_number']} | "
-                f"ACTION={step['action']} | "
-                f"{step['raw']}"
-            )
-        print()
-        asyncio.run(execute_flow_steps(FLOW_STEPS))
-            runner_module = importlib.import_module(_cfg.FLOW_RUNNER)
-            asyncio.run(runner_module.run_monitor())
         asyncio.run(run_flow_mode())
+        
     else:
         raise Exception(f"Unknown MODE: {MODE}")
