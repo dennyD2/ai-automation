@@ -395,17 +395,17 @@ async def stage3_email(page: Page, candidate_email: str) -> StepResult:
                 ["otp", "verification code", "code sent", "check your email", "verify"],
                 TIMEOUT_BOT
             )
-           if not appeared:
-                body = await page.evaluate("() => document.body.innerText")
-            
-                print("\n===== AFTER EMAIL SUBMISSION =====")
-                print(body[:4000])
-                print("=================================\n")
-                print("      ⚠️  Bot did not explicitly ask for email")
-                print("      ⚠️  Continuing anyway")
-            
-            else:
-                print("      ✅  Bot sent OTP request")
+        if not appeared:
+            body = await page.evaluate("() => document.body.innerText")
+        
+            print("\n===== AFTER EMAIL SUBMISSION =====")
+            print(body[:4000])
+            print("=================================\n")
+            print("      ⚠️  Bot did not explicitly ask for email")
+            print("      ⚠️  Continuing anyway")
+        
+        else:
+            print("      ✅  Bot sent OTP request")
     except Exception as e:
         step.fail("[API_ERROR]", str(e)[:200])
         step.screenshot = await screenshot(page, "STEP_05_fail")
