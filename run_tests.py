@@ -849,9 +849,9 @@ if __name__ == "__main__":
 
     elif MODE == "flow":
         print(f"🚀 Running FLOW mode for {COMPANY_NAME}")
-
-        import monitor_sagility
-        asyncio.run(monitor_sagility.run_monitor())
+        import importlib
+        runner_module = importlib.import_module(_cfg.FLOW_RUNNER)
+        asyncio.run(runner_module.run_monitor())
 
     else:
         raise Exception(f"Unknown MODE: {MODE}")
