@@ -96,6 +96,19 @@ def load_flow_document(path: str) -> str:
 
 FLOW_DOCUMENT_TEXT = load_flow_document(FLOW_DOC_PATH)
 
+def detect_execution_mode() -> str:
+    """
+    Decide which execution mode to run.
+    """
+
+    if MODE == "xlsx":
+        return "xlsx"
+
+    if MODE == "flow":
+        return "flow"
+
+    raise Exception(f"Unsupported MODE: {MODE}")
+
 # ── AI call (stdlib only, no langchain) ───────────────────────────────────────
 
 async def call_ai(messages: List[Dict]) -> str:
