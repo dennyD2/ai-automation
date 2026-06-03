@@ -52,9 +52,9 @@ _cfg = _load_company_config()
 COMPANY_NAME  = _cfg.COMPANY
 MODE          = _cfg.MODE
 BASE_URL      = _cfg.BASE_URL
-EXCEL_PATH    = _cfg.EXCEL_PATH
-FLOW_DOC_PATH = _cfg.FLOW_DOC_PATH
-SCOPE: Dict[str, Any] = _cfg.SCOPE
+EXCEL_PATH = getattr(_cfg, "EXCEL_PATH", "")
+FLOW_DOC_PATH = getattr(_cfg, "FLOW_DOC_PATH", "")
+SCOPE = getattr(_cfg, "SCOPE", {})
 
 ARTIFACTS      = "artifacts"
 MAX_STEPS      = 15        # increased for flow-driven tests
@@ -147,7 +147,7 @@ def parse_flow_into_steps(flow_text: str) -> List[Dict[str, str]]:
         })
 
     return steps
-    def summarize_flow(steps: List[Dict[str, str]]) -> Dict[str, int]:
+def summarize_flow(steps: List[Dict[str, str]]) -> Dict[str, int]:
     """
     Generate quick statistics from parsed flow steps.
     """
@@ -254,7 +254,7 @@ async def page_snapshot(page: Page) -> Dict:
             }
             const inputs = Array.from(
                 document.querySelectorAll('input:not([type=hidden]),textarea,select')
-            ).filter(e => e.offsetParent !== null).map(e => ({
+            ).filter(e => e.xtoffsetParent !== null).map(e => ({
                 type:        e.type || e.tagName.toLowerCase(),
                 placeholder: (e.placeholder || '').trim(),
                 label:       labelFor(e),
@@ -975,8 +975,8 @@ if __name__ == "__main__":
             )
         print()
         asyncio.run(execute_flow_steps(FLOW_STEPS))
-        runner_module = importlib.import_module(_cfg.FLOW_RUNNER)
-        asyncio.run(runner_module.run_monitor())
-
+            runner_module = importlib.import_module(_cfg.FLOW_RUNNER)
+            asyncio.run(runner_module.run_monitor())
+        asyncio.run(run_flow_mode())
     else:
         raise Exception(f"Unknown MODE: {MODE}")
