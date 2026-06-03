@@ -457,9 +457,11 @@ async def stage4_otp_gmail(gmail_context: BrowserContext, candidate_email: str) 
             print("      ✅  Gmail already logged in")
         else:
             # Fill email
-            await gmail_page.wait_for_selector('input[type="email"]', timeout=30000)
+            email_input = gmail_page.locator('input[type="email"]').first
 
-            await gmail_page.locator('input[type="email"]').fill(GMAIL_EMAIL)
+            await email_input.wait_for(timeout=30000)
+            
+            await email_input.fill(GMAIL_EMAIL)
             
             await gmail_page.keyboard.press("Enter")
             
