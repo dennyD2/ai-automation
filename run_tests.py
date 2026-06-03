@@ -50,6 +50,7 @@ def _load_company_config() -> Any:
 _cfg = _load_company_config()
 
 COMPANY_NAME  = _cfg.COMPANY
+MODE          = _cfg.MODE
 BASE_URL      = _cfg.BASE_URL
 EXCEL_PATH    = _cfg.EXCEL_PATH
 FLOW_DOC_PATH = _cfg.FLOW_DOC_PATH
