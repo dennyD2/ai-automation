@@ -95,7 +95,8 @@ def load_flow_document(path: str) -> str:
         return ""
 
 FLOW_DOCUMENT_TEXT = load_flow_document(FLOW_DOC_PATH)
-
+FLOW_STEPS = parse_flow_into_steps(FLOW_DOCUMENT_TEXT)
+FLOW_SUMMARY = summarize_flow(FLOW_STEPS)
 def detect_execution_mode() -> str:
     """
     Decide which execution mode to run.
@@ -146,9 +147,65 @@ def parse_flow_into_steps(flow_text: str) -> List[Dict[str, str]]:
         })
 
     return steps
+    def summarize_flow(steps: List[Dict[str, str]]) -> Dict[str, int]:
+    """
+    Generate quick statistics from parsed flow steps.
+    """
+
+    summary = {
+        "total_steps": len(steps),
+        "click_steps": 0,
+        "input_steps": 0,
+        "upload_steps": 0,
+        "validation_steps": 0,
+        "observation_steps": 0,
+    }
+
+    for step in steps:
+
+        action = step["action"]
+
+        if action == "click":
+            summary["click_steps"] += 1
+
+        elif action == "input":
+            summary["input_steps"] += 1
+
+        elif action == "upload":
+            summary["upload_steps"] += 1
+
+        elif action == "validate":
+            summary["validation_steps"] += 1
+
+        else:
+            summary["observation_steps"] += 1
+
+    return summary
 
 # ── AI call (stdlib only, no langchain) ───────────────────────────────────────
+async def execute_flow_steps(flow_steps: List[Dict[str, str]]):
+    """
+    Generic future-ready flow executor.
+    Currently logs actions only.
+    Later this will drive Playwright dynamically.
+    """
 
+    print("\n🚀 Executing parsed FLOW steps...\n")
+
+    for step in flow_steps:
+
+        step_no = step["step_number"]
+        action  = step["action"]
+        raw     = step["raw"]
+
+        print(
+            f"[FLOW STEP {step_no}] "
+            f"ACTION={action.upper()} | "
+            f"{raw}"
+        )
+
+    print("\n✅ FLOW execution skeleton completed\n")
+    
 async def call_ai(messages: List[Dict]) -> str:
     import urllib.request
     payload = json.dumps({
@@ -901,6 +958,23 @@ if __name__ == "__main__":
     elif MODE == "flow":
         print(f"🚀 Running FLOW mode for {COMPANY_NAME}")
         import importlib
+        print("\n📄 Parsed FLOW steps:\n")
+        print("📊 FLOW SUMMARY")
+        print(f"   Total steps      : {FLOW_SUMMARY['total_steps']}")
+        print(f"   Click actions    : {FLOW_SUMMARY['click_steps']}")
+        print(f"   Input actions    : {FLOW_SUMMARY['input_steps']}")
+        print(f"   Upload actions   : {FLOW_SUMMARY['upload_steps']}")
+        print(f"   Validation steps : {FLOW_SUMMARY['validation_steps']}")
+        print(f"   Observation only : {FLOW_SUMMARY['observation_steps']}")
+        print()
+        for step in FLOW_STEPS[:20]:
+            print(
+                f"STEP {step['step_number']} | "
+                f"ACTION={step['action']} | "
+                f"{step['raw']}"
+            )
+        print()
+        asyncio.run(execute_flow_steps(FLOW_STEPS))
         runner_module = importlib.import_module(_cfg.FLOW_RUNNER)
         asyncio.run(runner_module.run_monitor())
 
