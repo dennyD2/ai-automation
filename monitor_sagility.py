@@ -554,9 +554,7 @@ async def stage4_otp_gmail(gmail_context: BrowserContext, candidate_email: str) 
         
         print("      ✅  Gmail logged in")
 
-
-
-
+    except Exception as e:
         step6.fail("[GMAIL_FAILURE]", f"Gmail login error: {str(e)[:200]}")
         step6.screenshot = await screenshot(gmail_page, "STEP_06_fail")
         step6.duration = time.time() - t0
