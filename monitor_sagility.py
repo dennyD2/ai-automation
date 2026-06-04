@@ -574,61 +574,7 @@ async def stage4_otp_gmail(gmail_context: BrowserContext, candidate_email: str) 
             return step6, otp
         
         print("✅ Gmail logged in")
-
-        await gmail_page.wait_for_url(
-            re.compile(r"challenge|pwd|password", re.I),
-            timeout=30000
-        )
         
-        await gmail_page.wait_for_load_state("networkidle")
-        
-        await gmail_page.wait_for_timeout(5000)
-        
-        print(f"✅ Gmail moved to password page: {gmail_page.url}")
-        
-        password_input = gmail_page.locator(
-            'input[type="password"]'
-        ).first
-        
-        await password_input.wait_for(timeout=30000)
-        
-        await password_input.fill(GMAIL_PASSWORD)
-        
-        await gmail_page.get_by_role(
-            "button",
-            name=re.compile("next", re.I)
-        ).click()
-        
-        await gmail_page.wait_for_timeout(8000)
-        
-        body = await gmail_page.evaluate(
-            "() => document.body.innerText"
-        )
-        
-        if (
-            "inbox" not in body.lower()
-            and "compose" not in body.lower()
-            and "primary" not in body.lower()
-        ):
-        
-            step6.fail(
-                "[GMAIL_FAILURE]",
-                "Gmail login failed — inbox not accessible after login"
-            )
-        
-            step6.screenshot = await screenshot(
-                gmail_page,
-                "STEP_06_fail"
-            )
-        
-            step6.duration = time.time() - t0
-        
-            await gmail_page.close()
-        
-            return step6, otp
-        
-        print("      ✅  Gmail logged in")
-
     except Exception as e:
         step6.fail("[GMAIL_FAILURE]", f"Gmail login error: {str(e)[:200]}")
         step6.screenshot = await screenshot(gmail_page, "STEP_06_fail")
