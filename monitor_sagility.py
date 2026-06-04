@@ -4,7 +4,7 @@
 # Two isolated browser contexts: Context 1 = Gmail OTP, Context 2 = Candidate Portal
 
 import asyncio
-import jsonf
+import json
 import os
 import re
 import sys
