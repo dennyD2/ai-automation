@@ -23,7 +23,7 @@ ARTIFACTS_DIR   = "artifacts"
 
 # Candidate test data (from flow document)
 CANDIDATE_NAME  = "John Thomas"
-CANDIDATE_PHONE = "9879879879"
+CANDIDATE_PHONE = "3479345919"
 CANDIDATE_PIN   = "90001"
 RESUME_PATH     = os.path.join(os.path.dirname(__file__), "Resume_IST.pdf")
 
