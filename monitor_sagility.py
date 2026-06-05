@@ -641,8 +641,52 @@ async def stage6_resume(page: Page, candidate_email: str) -> list[StepResult]:
                 continue
 
         if not uploaded and step15.status != "FAIL":
-            step15.fail("[ELEMENT_MISSING]", "File input for resume upload not found")
-            step15.screenshot = await screenshot(page, "STEP_15_fail")
+        
+            body = await page.evaluate(
+                "() => document.body.innerText"
+            )
+        
+            print("\n===== RESUME PAGE DEBUG =====")
+            print(body[:5000])
+            print("================================\n")
+        
+            html = await page.content()
+        
+            debug_html = os.path.join(
+                ARTIFACTS_DIR,
+                "resume_debug.html"
+            )
+        
+            with open(debug_html, "w", encoding="utf-8") as f:
+                f.write(html)
+        
+            print(f"✅ Resume debug HTML saved: {debug_html}")
+        
+            inputs = await page.locator("input").count()
+        
+            print(f"🔹 TOTAL INPUT ELEMENTS: {inputs}")
+        
+            file_inputs = await page.locator(
+                'input[type="file"]'
+            ).count()
+        
+            print(f"🔹 FILE INPUTS FOUND: {file_inputs}")
+        
+            buttons = await page.locator("button").all_inner_texts()
+        
+            print("🔹 BUTTONS FOUND:")
+            print(buttons)
+        
+            step15.fail(
+                "[ELEMENT_MISSING]",
+                "File input for resume upload not found"
+            )
+        
+            step15.screenshot = await screenshot(
+                page,
+                "STEP_15_fail"
+            )
+
         elif uploaded:
             await page.wait_for_timeout(2000)
             body = await page.evaluate("() => document.body.innerText")
