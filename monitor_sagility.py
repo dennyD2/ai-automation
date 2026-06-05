@@ -809,9 +809,6 @@ async def run_monitor():
         
             _add(r)
 
-                    # OTP extraction failed — already logged above, just make sure we don't continue
-                    pass
-
         print("\n── STAGE 5: Candidate Information")
         r = await _run_or_skip(
             lambda: stage5_candidate_info(portal_page, candidate_email),
