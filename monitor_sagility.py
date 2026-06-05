@@ -1010,6 +1010,9 @@ async def run_monitor():
     print(f"Failed steps count: {failed}")
     
     print("================================\n")
+ 
+    print(f"DISCORD_WEBHOOK value: {DISCORD_WEBHOOK[:40] if DISCORD_WEBHOOK else 'EMPTY'}")
+
     
     if DISCORD_WEBHOOK:
     
