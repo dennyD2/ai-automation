@@ -536,7 +536,22 @@ async def stage5_candidate_info(page: Page, candidate_email: str) -> list[StepRe
                 step.fail("[ELEMENT_MISSING]", f"Chat input not found when trying to send: {value}")
                 step.screenshot = await screenshot(page, f"{step_id}_fail")
             else:
-                appeared = await wait_for_bot_text(page, next_keywords, TIMEOUT_BOT)
+                await page.wait_for_timeout(5000)
+                
+                body = await page.evaluate(
+                    "() => document.body.innerText"
+                )
+                
+                print(f"\n===== AFTER SUBMITTING: {value} =====")
+                print(body[:3000])
+                print("=====================================\n")
+                
+                appeared = await wait_for_bot_text(
+                    page,
+                    next_keywords,
+                    TIMEOUT_BOT
+                )
+
                 if not appeared:
                     health = await detect_blank_or_spinner(page)
                     step.fail(
