@@ -192,11 +192,9 @@ async def send_discord_alert(step: StepResult, candidate_email: str = ""):
     req = urllib.request.Request(
         DISCORD_WEBHOOK,
         data=payload,
-        headers={
-            "Content-Type": "application/json"
-        },
-        method="POST"
-    )
+        headers={ "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
+                method="POST"
+            )
 
     try:
         print("🔹 Discord payload:")
