@@ -596,8 +596,38 @@ async def stage5_candidate_info(page: Page, candidate_email: str) -> list[StepRe
                         f"Bot did not respond with next question after submitting '{value}'"
                     )
                     step.screenshot = await screenshot(page, f"{step_id}_fail")
-                else:
-                    print(f"      ✅  {name}")
+                            ```python id="9x1m4q"
+               else:
+            
+                   print(f"      ✅  {name}")
+            
+                   if value.lower() == "no":
+            
+                       print("🔹 Waiting for final completion message")
+            
+                       await page.wait_for_timeout(8000)
+            
+                       final_text_found = await wait_for_bot_text(
+                           page,
+                           [
+                               "uploading your resume",
+                               "next steps",
+                               "prescreening",
+                               "you're all set"
+                           ],
+                           20000
+                       )
+            
+                       body = await page.evaluate(
+                           "() => document.body.innerText"
+                          )
+            
+                       print("\n===== FINAL BOT MESSAGE =====")
+                       print(body[:5000])
+                       print("================================\n")
+            
+                       print(f"✅ Final message detected: {final_text_found}")
+
         except Exception as e:
             step.fail("[API_ERROR]", str(e)[:200])
             step.screenshot = await screenshot(page, f"{step_id}_fail")
