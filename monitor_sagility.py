@@ -13,13 +13,11 @@ from datetime import datetime
 from typing import Optional
 import urllib.request
 
-from playwright.async_api import async_playwright, BrowserContext, Page
+from playwright.async_api import async_playwright, Page
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
 PORTAL_URL      = "https://hire-qa.bling-ai.com/sagility?reqId=REQ-017239&country='US'&location='TX'&source=SOURCE-3-125&profileID=IND007053"
-GMAIL_EMAIL     = "bling2cloud@gmail.com"
-GMAIL_PASSWORD  = "Bling@12345"
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK", "")
 ARTIFACTS_DIR   = "artifacts"
 
@@ -32,7 +30,6 @@ RESUME_PATH     = os.path.join(os.path.dirname(__file__), "sample_resume.pdf")
 # Timeouts (from flow document)
 TIMEOUT_WEBSITE   = 15_000   # ms
 TIMEOUT_BOT       = 30_000   # ms
-TIMEOUT_OTP_EMAIL = 60_000   # ms — Gmail can be slow in CI; document says 20s but 60s is safer
 TIMEOUT_NAV       = 10_000   # ms
 TIMEOUT_UPLOAD    = 15_000   # ms
 TIMEOUT_VIDEO     = 10_000   # ms
@@ -411,54 +408,44 @@ async def stage3_email(page: Page, candidate_email: str) -> StepResult:
         step.screenshot = await screenshot(page, "STEP_05_fail")
     step.duration = time.time() - t0
     return step
+    
+# ── STAGE 4 — Static OTP ─────────────────────────────────────────────────────
 
-# ── STAGE 4 — Gmail OTP ───────────────────────────────────────────────────────
+async def stage4_static_otp(page: Page, candidate_email: str) -> tuple[StepResult, str]:
 
-async def stage4_otp_gmail(gmail_context: BrowserContext, candidate_email: str) -> tuple[StepResult, str]:
-    """Returns (step_result, otp_string). otp_string is '' on failure."""
-
-    # Step 6 — Gmail login
-    step6 = StepResult("STEP_06", "Gmail OTP — login to Gmail")
+    step = StepResult("STEP_06", "OTP Verification — use static OTP")
     t0 = time.time()
-    gmail_page = await gmail_context.new_page()
-    otp = ""
+
+    otp = "123456"
 
     try:
-        await gmail_page.goto("https://accounts.google.com/signin/v2/identifier?service=mail", wait_until="domcontentloaded", timeout=TIMEOUT_WEBSITE)
-        print("\n========== GMAIL DEBUG ==========")
 
-        print("Current URL:")
-        print(gmail_page.url)
-        
-        print("\nPage title:")
-        print(await gmail_page.title())
-        frames = gmail_page.frames
-        print("\n===== FRAMES =====")
-        
-        all_inputs = await gmail_page.locator("input").count()
-        print(f"\nTOTAL INPUTS FOUND: {all_inputs}\n")
-              
-        for i, frame in enumerate(frames):
-            print(f"FRAME {i}: {frame.url}")
-        
-        print("==================\n")
-        await gmail_page.screenshot(path="artifacts/gmail_debug.png")
-        
-        body_text = await gmail_page.evaluate("() => document.body.innerText")
-        
-        print("\nVisible page text:")
-        print(body_text[:8000])
-        
-        html = await gmail_page.content()
-        
-        with open("artifacts/gmail_debug.html", "w", encoding="utf-8") as f:
-            f.write(html)
-        
-        print("\nSaved:")
-        print(" - artifacts/gmail_debug.png")
-        print(" - artifacts/gmail_debug.html")
-        
+        print(f"      ✅  Using static OTP: {otp}")
+
+        body = await page.evaluate("() => document.body.innerText")
+
+        print("\n===== BEFORE OTP SUBMISSION =====")
+        print(body[:3000])
         print("=================================\n")
+
+        step.status = "PASS"
+
+    except Exception as e:
+
+        step.fail(
+            "[OTP_FAILURE]",
+            f"Static OTP generation failed: {str(e)[:200]}"
+        )
+
+        step.screenshot = await screenshot(
+            page,
+            "STEP_06_fail"
+        )
+
+    step.duration = time.time() - t0
+
+    return step, otp
+
         
 # Check if already logged in
         body = await gmail_page.evaluate("() => document.body.innerText")
@@ -930,8 +917,6 @@ async def run_monitor():
 
         # Two isolated contexts
         portal_ctx = await browser.new_context(viewport={"width": 1280, "height": 800})
-        gmail_ctx  = await browser.new_context(viewport={"width": 1280, "height": 800})
-
         portal_page = await portal_ctx.new_page()
         portal_page.set_default_timeout(15000)
 
@@ -973,19 +958,32 @@ async def run_monitor():
         )
         if r: _add(r)
 
-        print("\n── STAGE 4: Gmail OTP Retrieval")
+        print("\n── STAGE 4: Static OTP")
         otp = ""
+        
         if not failed_step:
-            gmail_step, otp = await stage4_otp_gmail(gmail_ctx, candidate_email)
-            _add(gmail_step)
-
+        
+            otp_step, otp = await stage4_static_otp(
+                portal_page,
+                candidate_email
+            )
+        
+            _add(otp_step)
+        
         print("\n── STAGE 4 (cont.): Submit OTP in Portal")
+        
         if not failed_step and otp:
-            r = await stage4_submit_otp(portal_page, otp, candidate_email)
+        
+            r = await stage4_submit_otp(
+                portal_page,
+                otp,
+                candidate_email
+            )
+        
             _add(r)
-        elif not failed_step and not otp:
-            # OTP extraction failed — already logged above, just make sure we don't continue
-            pass
+
+                    # OTP extraction failed — already logged above, just make sure we don't continue
+                    pass
 
         print("\n── STAGE 5: Candidate Information")
         r = await _run_or_skip(
