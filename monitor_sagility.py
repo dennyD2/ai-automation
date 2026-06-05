@@ -168,11 +168,16 @@ async def send_discord_alert(step: StepResult, candidate_email: str = ""):
     }
 
     payload = json.dumps({"embeds": [embed]}).encode()
+   
     req = urllib.request.Request(
         DISCORD_WEBHOOK,
         data=payload,
-        headers={"Content-Type": "application/json"},
+        headers={
+            "Content-Type": "application/json"
+        },
+        method="POST"
     )
+
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
             print(f"  📣  Discord alert sent for {step.step_id} — HTTP {resp.status}")
