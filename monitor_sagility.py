@@ -1001,30 +1001,58 @@ async def run_monitor():
     print(f"  📄  Report  : {report_path}")
     print(f"  📄  JSON    : {results_json}")
 
-    # ── Discord alerts for every failed step ──────────────────────────────────
-    for r in all_results:
-        if r.status == "FAIL":
-          
-            print("\n===== DISCORD DEBUG =====")
-            
-            print(f"DISCORD_WEBHOOK exists: {bool(DISCORD_WEBHOOK)}")
-            
-            print(f"Failed steps count: {len(failed_steps)}")
-            
-            for s in failed_steps:
-                print(f"FAILED: {s.id} -> {s.reason}")
-            
-            print("================================\n")
-
-
-            await send_discord_alert(r, candidate_email)
-
-    if failed == 0:
-        print("\n  ✅  ALL STEPS PASSED — Sagility candidate journey is healthy")
-    else:
-        print(f"\n  🚨  {failed} STEP(S) FAILED — alerts sent to Discord")
-        sys.exit(1)   # non-zero exit → GitHub Actions marks the run as failed
-
+    # ── Discord Notifications ───────────────────────────────────────────────
+    
+    print("\n===== DISCORD DEBUG =====")
+    
+    print(f"DISCORD_WEBHOOK exists: {bool(DISCORD_WEBHOOK)}")
+    
+    print(f"Failed steps count: {failed}")
+    
+    print("================================\n")
+    
+    if DISCORD_WEBHOOK:
+    
+        # Send failure alerts
+        if failed > 0:
+    
+            for r in all_results:
+    
+                if r.status == "FAIL":
+    
+                    print(f"🚨 Sending failure alert for: {r.id}")
+    
+                    await send_discord_alert(
+                        r,
+                        candidate_email
+                    )
+    
+            print(
+                f"\n  🚨  {failed} STEP(S) FAILED — alerts sent to Discord"
+            )
+    
+            sys.exit(1)
+    
+        # Send success alert
+        else:
+    
+            print("✅ Sending SUCCESS notification to Discord")
+    
+            success_result = StepResult(
+                "SUCCESS",
+                "Sagility candidate journey completed successfully"
+            )
+    
+            success_result.status = "PASS"
+    
+            await send_discord_alert(
+                success_result,
+                candidate_email
+            )
+    
+            print(
+                "\n  ✅  ALL STEPS PASSED — Sagility candidate journey is healthy"
+            )
 
 if __name__ == "__main__":
     asyncio.run(run_monitor())
