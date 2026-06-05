@@ -155,16 +155,36 @@ async def send_discord_alert(step: StepResult, candidate_email: str = ""):
     if candidate_email:
         fields.append({"name": "Candidate email", "value": candidate_email, "inline": False})
     if RUN_URL:
-        fields.append({"name": "CI Run", "value": f"[View run]({RUN_URL})", "inline": False})
+        fields.append({ "name": "CI Run", "value": RUN_URL, "inline": False })
     if step.screenshot:
         fields.append({"name": "Screenshot", "value": f"`{step.screenshot}`", "inline": False})
 
+    is_success = step.step_id == "SUCCESS"
+    
     embed = {
-        "title": f"🚨 Sagility Monitor — {step.step_id} FAILED",
-        "description": f"**{label or step.tag}** detected during production flow monitoring.",
-        "color": _discord_color(step.tag),
+        "title": (
+            "✅ Sagility Monitor — SUCCESS"
+            if is_success
+            else f"🚨 Sagility Monitor — {step.step_id} FAILED"
+        ),
+    
+        "description": (
+            "Production monitoring completed successfully."
+            if is_success
+            else f"**{label or step.tag}** detected during production flow monitoring."
+        ),
+    
+        "color": (
+            5763719
+            if is_success
+            else _discord_color(step.tag)
+        ),
+    
         "fields": fields,
-        "footer": {"text": f"Portal: {PORTAL_URL}"},
+    
+        "footer": {
+            "text": f"Portal: {PORTAL_URL}"
+        },
     }
 
     payload = json.dumps({"embeds": [embed]}).encode()
