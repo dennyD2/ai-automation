@@ -1004,6 +1004,19 @@ async def run_monitor():
     # ── Discord alerts for every failed step ──────────────────────────────────
     for r in all_results:
         if r.status == "FAIL":
+          
+            print("\n===== DISCORD DEBUG =====")
+            
+            print(f"DISCORD_WEBHOOK exists: {bool(DISCORD_WEBHOOK)}")
+            
+            print(f"Failed steps count: {len(failed_steps)}")
+            
+            for s in failed_steps:
+                print(f"FAILED: {s.id} -> {s.reason}")
+            
+            print("================================\n")
+
+
             await send_discord_alert(r, candidate_email)
 
     if failed == 0:
