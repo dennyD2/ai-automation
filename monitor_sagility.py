@@ -553,7 +553,44 @@ async def stage5_candidate_info(page: Page, candidate_email: str) -> list[StepRe
                 )
 
                 if not appeared:
+                
+                    await page.wait_for_timeout(5000)
+                
+                    current_url = page.url
+                
+                    body = await page.evaluate(
+                        "() => document.body.innerText"
+                    )
+                
+                    print(f"\n===== DEBUG AFTER SUBMITTING: {value} =====")
+                    print(f"Current URL: {current_url}")
+                    print(body[:5000])
+                    print("===========================================\n")
+                
+                    html = await page.content()
+                
+                    debug_html = os.path.join(
+                        ARTIFACTS_DIR,
+                        f"{step_id}_debug.html"
+                    )
+                
+                    with open(debug_html, "w", encoding="utf-8") as f:
+                        f.write(html)
+                
+                    print(f"✅ Debug HTML saved: {debug_html}")
+                
                     health = await detect_blank_or_spinner(page)
+                
+                    step.fail(
+                        health or fail_tag,
+                        f"Bot did not respond with next question after submitting '{value}'"
+                    )
+                
+                    step.screenshot = await screenshot(
+                        page,
+                        f"{step_id}_fail"
+                    )
+
                     step.fail(
                         health or fail_tag,
                         f"Bot did not respond with next question after submitting '{value}'"
