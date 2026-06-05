@@ -596,7 +596,7 @@ async def stage5_candidate_info(page: Page, candidate_email: str) -> list[StepRe
                         f"Bot did not respond with next question after submitting '{value}'"
                     )
                     step.screenshot = await screenshot(page, f"{step_id}_fail")
-                            ```python id="9x1m4q"
+                        
                else:
             
                    print(f"      ✅  {name}")
