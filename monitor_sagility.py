@@ -758,7 +758,20 @@ async def stage7_video(page: Page, candidate_email: str) -> list[StepResult]:
     step17 = StepResult("STEP_17", "Marketing Video — video player visible")
     t0 = time.time()
     try:
-        await page.wait_for_timeout(3000)
+    print("🔹 Waiting for marketing video section to load")
+    
+    await page.wait_for_load_state("networkidle")
+    
+    await page.wait_for_timeout(10000)
+    
+    body = await page.evaluate(
+        "() => document.body.innerText"
+    )
+    
+    print("\n===== VIDEO PAGE DEBUG =====")
+    print(body[:5000])
+    print("================================\n")
+
         video_found = await page.evaluate("""() => {
             const vid = document.querySelector('video');
             const iframe = document.querySelector('iframe[src*="youtube"],iframe[src*="vimeo"],iframe[src*="video"]');
