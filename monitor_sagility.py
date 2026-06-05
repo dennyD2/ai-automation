@@ -179,6 +179,8 @@ async def send_discord_alert(step: StepResult, candidate_email: str = ""):
     )
 
     try:
+        print("🔹 Discord payload:")
+        print(json.loads(payload.decode()))
         with urllib.request.urlopen(req, timeout=10) as resp:
             print(f"  📣  Discord alert sent for {step.step_id} — HTTP {resp.status}")
     except Exception as e:
