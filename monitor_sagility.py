@@ -797,6 +797,19 @@ async def stage7_video(page: Page, candidate_email: str) -> list[StepResult]:
             page.get_by_role("button", name=re.compile("proceed|next step|continue", re.I)),
             page.get_by_text(re.compile("proceed to next|next step", re.I)),
         ]
+
+        await page.wait_for_load_state("networkidle")
+        
+        await page.wait_for_timeout(8000)
+        
+        body = await page.evaluate(
+            "() => document.body.innerText"
+        )
+        
+        print("\n===== BEFORE PROCEED BUTTON =====")
+        print(body[:5000])
+        print("=================================\n")
+
         clicked = False
         for loc in btn_locs:
             try:
