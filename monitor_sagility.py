@@ -80,12 +80,30 @@ def ts_email() -> str:
     return f"bling2cloud+{datetime.utcnow().strftime('%Y%m%d%H%M%S')}@gmail.com"
 
 async def screenshot(page: Page, name: str) -> str:
-    path = os.path.join(ARTIFACTS_DIR, f"{name}.png")
+
+    path = os.path.join(
+        ARTIFACTS_DIR,
+        f"{name}.png"
+    )
+
     try:
-        await page.screenshot(path=path, full_page=True)
-    except Exception:
-        path = ""
-    return path
+
+        print(f"🔹 Taking screenshot: {path}")
+
+        await page.screenshot(
+            path=path,
+            full_page=True
+        )
+
+        print(f"✅ Screenshot saved: {path}")
+
+        return path
+
+    except Exception as e:
+
+        print(f"❌ Screenshot failed: {e}")
+
+        return ""
 
 async def wait_for_bot_text(page: Page, keywords: list[str], timeout_ms: int = TIMEOUT_BOT) -> bool:
     """Wait until any of the keywords appear in the chat section."""
