@@ -1049,7 +1049,7 @@ async def run_monitor():
         )
         if r: _add(r)
 
-        await browser.close()
+        
 
     # ── Reports ────────────────────────────────────────────────────────────────
     duration = time.time() - start_time
@@ -1133,6 +1133,6 @@ async def run_monitor():
             print(
                 "\n  ✅  ALL STEPS PASSED — Sagility candidate journey is healthy"
             )
-
+        await browser.close()
 if __name__ == "__main__":
     asyncio.run(run_monitor())
