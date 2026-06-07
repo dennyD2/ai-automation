@@ -1090,7 +1090,7 @@ async def run_monitor():
     
                 if r.status == "FAIL":
     
-                    print(f"🚨 Sending failure alert for: {r.id}")
+                    print(f"🚨 Sending failure alert for: {r.step_id}")
     
                     await send_discord_alert(
                         r,
