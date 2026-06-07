@@ -3,8 +3,8 @@ name: AI Agentic Test Runner — Production Monitor
 on:
   push:
     branches: [ main ]
-  schedule:
-    - cron: '0 */2 * * *'   # every 2 hours — production monitoring
+  #schedule:
+    #- cron: '0 */2 * * *'   # every 2 hours — production monitoring
   workflow_dispatch:
     inputs:
       company:
