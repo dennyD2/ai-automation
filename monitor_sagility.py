@@ -194,8 +194,25 @@ async def send_discord_alert(step: StepResult, candidate_email: str = ""):
     
     files = {}
     
+    print(f"🔹 step.screenshot = {step.screenshot}")
     
-    
+    if step.screenshot:
+        print(
+            f"🔹 Screenshot exists? "
+            f"{os.path.exists(step.screenshot)}"
+        )
+        
+    if step.screenshot and os.path.exists(step.screenshot):
+
+        print(f"🔹 Attaching screenshot: {step.screenshot}")
+
+        files["file"] = open(step.screenshot, "rb")
+
+        embed["image"] = {
+            "url": "attachment://" + os.path.basename(step.screenshot)
+        }
+        print("✅ Screenshot attached to Discord payload")
+        
     try:
     
         response = requests.post(
