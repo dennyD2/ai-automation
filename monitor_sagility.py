@@ -12,6 +12,7 @@ import time
 from datetime import datetime
 from typing import Optional
 import urllib.request
+import requests
 
 from playwright.async_api import async_playwright, Page
 
@@ -186,23 +187,47 @@ async def send_discord_alert(step: StepResult, candidate_email: str = ""):
             "text": f"Portal: {PORTAL_URL}"
         },
     }
-
-    payload = json.dumps({"embeds": [embed]}).encode()
-   
-    req = urllib.request.Request(
-        DISCORD_WEBHOOK,
-        data=payload,
-        headers={ "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
-                method="POST"
-            )
-
+ 
+    payload = {
+        "embeds": [embed]
+    }
+    
+    files = {}
+    
+    
+    
     try:
-        print("🔹 Discord payload:")
-        print(json.loads(payload.decode()))
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            print(f"  📣  Discord alert sent for {step.step_id} — HTTP {resp.status}")
+    
+        response = requests.post(
+            DISCORD_WEBHOOK,
+            data={
+                "payload_json": json.dumps(payload)
+            },
+            files=files if files else None,
+            timeout=15
+        )
+    
+        if response.status_code in [200, 204]:
+    
+            print(
+                f"📣 Discord alert sent for {step.step_id}"
+            )
+    
+        else:
+    
+            print(
+                f"⚠️ Discord alert failed: "
+                f"{response.status_code} {response.text}"
+            )
+    
     except Exception as e:
-        print(f"  ⚠️  Discord alert failed: {e}")
+    
+        print(f"⚠️ Discord alert failed: {e}")
+    
+    finally:
+    
+        if files:
+            files["file"].close()
 
 # ── HTML report ───────────────────────────────────────────────────────────────
 
