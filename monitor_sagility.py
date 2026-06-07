@@ -1112,9 +1112,19 @@ async def run_monitor():
                 "SUCCESS",
                 "Sagility candidate journey completed successfully"
             )
-    
+            
             success_result.status = "PASS"
-    
+            
+            success_result.screenshot = await screenshot(
+                portal_page,
+                "SUCCESS_FINAL"
+            )
+            
+            print(
+                f"✅ Success screenshot saved: "
+                f"{success_result.screenshot}"
+            )
+            
             await send_discord_alert(
                 success_result,
                 candidate_email
