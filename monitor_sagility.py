@@ -459,8 +459,8 @@ async def stage3_email(page: Page, candidate_email: str) -> StepResult:
                     await loc.first.press("Enter")
                     await page.wait_for_timeout(5000)
                     body = await page.evaluate("() => document.body.innerText")
-                    print("\n===== PAGE AFTER EMAIL SUBMISSION =====")
-                    print(body[:3000])
+                    #print("\n===== PAGE AFTER EMAIL SUBMISSION =====")
+                    #print(body[:3000])
                     print("=======================================\n")
                     filled = True
                     break
@@ -480,9 +480,9 @@ async def stage3_email(page: Page, candidate_email: str) -> StepResult:
         if not appeared:
             body = await page.evaluate("() => document.body.innerText")
         
-            print("\n===== AFTER EMAIL SUBMISSION =====")
-            print(body[:4000])
-            print("=================================\n")
+            #print("\n===== AFTER EMAIL SUBMISSION =====")
+            #print(body[:4000])
+            #print("=================================\n")
             print("      ⚠️  Bot did not explicitly ask for email")
             print("      ⚠️  Continuing anyway")
         
@@ -509,9 +509,9 @@ async def stage4_static_otp(page: Page, candidate_email: str) -> tuple[StepResul
 
         body = await page.evaluate("() => document.body.innerText")
 
-        print("\n===== BEFORE OTP SUBMISSION =====")
-        print(body[:3000])
-        print("=================================\n")
+        #print("\n===== BEFORE OTP SUBMISSION =====")
+        #print(body[:3000])
+        #print("=================================\n")
 
         step.status = "PASS"
 
@@ -627,9 +627,9 @@ async def stage5_candidate_info(page: Page, candidate_email: str) -> list[StepRe
                     "() => document.body.innerText"
                 )
                 
-                print(f"\n===== AFTER SUBMITTING: {value} =====")
-                print(body[:3000])
-                print("=====================================\n")
+                #print(f"\n===== AFTER SUBMITTING: {value} =====")
+                #print(body[:3000])
+                #print("=====================================\n")
                 
                 appeared = await wait_for_bot_text(
                     page,
@@ -647,10 +647,10 @@ async def stage5_candidate_info(page: Page, candidate_email: str) -> list[StepRe
                         "() => document.body.innerText"
                     )
                 
-                    print(f"\n===== DEBUG AFTER SUBMITTING: {value} =====")
-                    print(f"Current URL: {current_url}")
-                    print(body[:5000])
-                    print("===========================================\n")
+                    #print(f"\n===== DEBUG AFTER SUBMITTING: {value} =====")
+                    #print(f"Current URL: {current_url}")
+                    #print(body[:5000])
+                    #print("===========================================\n")
                 
                     html = await page.content()
                 
@@ -707,8 +707,8 @@ async def stage5_candidate_info(page: Page, candidate_email: str) -> list[StepRe
                             "() => document.body.innerText"
                         )
 
-                        print("\n===== FINAL BOT MESSAGE =====")
-                        print(body[:5000])
+                        #print("\n===== FINAL BOT MESSAGE =====")
+                        ##print(body[:5000])
                         print("================================\n")
 
                         print(f"✅ Final message detected: {final_text_found}")
@@ -761,9 +761,9 @@ async def stage6_resume(page: Page, candidate_email: str) -> list[StepResult]:
                 "() => document.body.innerText"
             )
         
-            print("\n===== RESUME PAGE DEBUG =====")
-            print(body[:5000])
-            print("================================\n")
+            #print("\n===== RESUME PAGE DEBUG =====")
+            #print(body[:5000])
+            #print("================================\n")
         
             html = await page.content()
         
@@ -883,9 +883,9 @@ async def stage7_video(page: Page, candidate_email: str) -> list[StepResult]:
             "() => document.body.innerText"
         )
 
-        print("\n===== VIDEO PAGE DEBUG =====")
-        print(body[:5000])
-        print("================================\n")
+        #print("\n===== VIDEO PAGE DEBUG =====")
+        #print(body[:5000])
+        #print("================================\n")
 
         video_found = await page.evaluate("""() => {
             const vid = document.querySelector('video');
@@ -921,9 +921,9 @@ async def stage7_video(page: Page, candidate_email: str) -> list[StepResult]:
             "() => document.body.innerText"
         )
         
-        print("\n===== BEFORE PROCEED BUTTON =====")
-        print(body[:5000])
-        print("=================================\n")
+        #print("\n===== BEFORE PROCEED BUTTON =====")
+        #print(body[:5000])
+        #print("=================================\n")
 
         clicked = False
         for loc in btn_locs:
