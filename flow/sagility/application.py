@@ -26,6 +26,13 @@ ARTIFACTS_DIR   = "artifacts"
 CANDIDATE_NAME  = "John Thomas"
 CANDIDATE_PHONE = "3479345919"
 CANDIDATE_PIN   = "90001"
+
+BASE_DIR = os.path.dirname(
+    os.path.dirname(
+        os.path.dirname(file)
+    )
+)
+
 RESUME_PATH = os.path.join(
     BASE_DIR,
     "test_data",
