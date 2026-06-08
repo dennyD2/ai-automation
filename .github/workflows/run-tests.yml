@@ -40,7 +40,7 @@ jobs:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           DISCORD_WEBHOOK:  ${{ secrets.DISCORD_WEBHOOK }}
         #run: python run_tests.py ${{ github.event.inputs.company || 'sagility' }}
-        run: python flow/sagility/application.py
+        run : python -m flow.sagility.application
         
       - name: Upload artifacts
         if: always()
