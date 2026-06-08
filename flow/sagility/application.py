@@ -1059,87 +1059,87 @@ async def run_monitor():
         
 
     # ── Reports ────────────────────────────────────────────────────────────────
-    duration = time.time() - start_time
-    passed = sum(1 for r in all_results if r.status == "PASS")
-    failed = sum(1 for r in all_results if r.status == "FAIL")
-
-    results_json = os.path.join(ARTIFACTS_DIR, "results.json")
-    with open(results_json, "w", encoding="utf-8") as f:
-        json.dump([r.to_dict() for r in all_results], f, indent=2)
-
-    report_path = write_report(all_results, candidate_email, duration)
-
-    print(f"\n{'='*60}")
-    print(f"  📊  {passed} passed  /  {failed} failed  /  {len(all_results)} total")
-    print(f"  ⏱   Duration: {duration:.1f}s")
-    print(f"  📄  Report  : {report_path}")
-    print(f"  📄  JSON    : {results_json}")
-
-    # ── Discord Notifications ───────────────────────────────────────────────
+        duration = time.time() - start_time
+        passed = sum(1 for r in all_results if r.status == "PASS")
+        failed = sum(1 for r in all_results if r.status == "FAIL")
     
-    print("\n===== DISCORD DEBUG =====")
+        results_json = os.path.join(ARTIFACTS_DIR, "results.json")
+        with open(results_json, "w", encoding="utf-8") as f:
+            json.dump([r.to_dict() for r in all_results], f, indent=2)
     
-    print(f"DISCORD_WEBHOOK exists: {bool(DISCORD_WEBHOOK)}")
+        report_path = write_report(all_results, candidate_email, duration)
     
-    print(f"Failed steps count: {failed}")
+        print(f"\n{'='*60}")
+        print(f"  📊  {passed} passed  /  {failed} failed  /  {len(all_results)} total")
+        print(f"  ⏱   Duration: {duration:.1f}s")
+        print(f"  📄  Report  : {report_path}")
+        print(f"  📄  JSON    : {results_json}")
     
-    print("================================\n")
- 
-    print(f"DISCORD_WEBHOOK value: {DISCORD_WEBHOOK[:40] if DISCORD_WEBHOOK else 'EMPTY'}")
-
+        # ── Discord Notifications ───────────────────────────────────────────────
+        
+        print("\n===== DISCORD DEBUG =====")
+        
+        print(f"DISCORD_WEBHOOK exists: {bool(DISCORD_WEBHOOK)}")
+        
+        print(f"Failed steps count: {failed}")
+        
+        print("================================\n")
+     
+        print(f"DISCORD_WEBHOOK value: {DISCORD_WEBHOOK[:40] if DISCORD_WEBHOOK else 'EMPTY'}")
     
-    if DISCORD_WEBHOOK:
-    
-        # Send failure alerts
-        if failed > 0:
-    
-            for r in all_results:
-    
-                if r.status == "FAIL":
-    
-                    print(f"🚨 Sending failure alert for: {r.step_id}")
-    
-                    await send_discord_alert(
-                        r,
-                        candidate_email
-                    )
-    
-            print(
-                f"\n  🚨  {failed} STEP(S) FAILED — alerts sent to Discord"
-            )
-    
-            sys.exit(1)
-    
-        # Send success alert
-        else:
-    
-            print("✅ Sending SUCCESS notification to Discord")
-    
-            success_result = StepResult(
-                "SUCCESS",
-                "Sagility candidate journey completed successfully"
-            )
-            
-            success_result.status = "PASS"
-            
-            success_result.screenshot = await screenshot(
-                portal_page,
-                "SUCCESS_FINAL"
-            )
-            
-            print(
-                f"✅ Success screenshot saved: "
-                f"{success_result.screenshot}"
-            )
-            
-            await send_discord_alert(
-                success_result,
-                candidate_email
-            )
-    
-            print(
-                "\n  ✅  ALL STEPS PASSED — Sagility candidate journey is healthy"
-            )
+        
+        if DISCORD_WEBHOOK:
+        
+            # Send failure alerts
+            if failed > 0:
+        
+                for r in all_results:
+        
+                    if r.status == "FAIL":
+        
+                        print(f"🚨 Sending failure alert for: {r.step_id}")
+        
+                        await send_discord_alert(
+                            r,
+                            candidate_email
+                        )
+        
+                print(
+                    f"\n  🚨  {failed} STEP(S) FAILED — alerts sent to Discord"
+                )
+        
+                sys.exit(1)
+        
+            # Send success alert
+            else:
+        
+                print("✅ Sending SUCCESS notification to Discord")
+        
+                success_result = StepResult(
+                    "SUCCESS",
+                    "Sagility candidate journey completed successfully"
+                )
+                
+                success_result.status = "PASS"
+                
+                success_result.screenshot = await screenshot(
+                    portal_page,
+                    "SUCCESS_FINAL"
+                )
+                
+                print(
+                    f"✅ Success screenshot saved: "
+                    f"{success_result.screenshot}"
+                )
+                
+                await send_discord_alert(
+                    success_result,
+                    candidate_email
+                )
+        
+                print(
+                    "\n  ✅  ALL STEPS PASSED — Sagility candidate journey is healthy"
+                )
         await browser.close()
 if __name__ == "__main__":
     asyncio.run(run_monitor())
