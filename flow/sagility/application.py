@@ -12,6 +12,7 @@ import time
 from datetime import datetime
 from typing import Optional
 from core.step_result import StepResult
+from services.screenshot_service import screenshot
 
 import urllib.request
 import requests
@@ -67,32 +68,6 @@ os.makedirs(ARTIFACTS_DIR, exist_ok=True)
 
 def ts_email() -> str:
     return f"bling2cloud+{datetime.utcnow().strftime('%Y%m%d%H%M%S')}@gmail.com"
-
-async def screenshot(page: Page, name: str) -> str:
-
-    path = os.path.join(
-        ARTIFACTS_DIR,
-        f"{name}.png"
-    )
-
-    try:
-
-        print(f"🔹 Taking screenshot: {path}")
-
-        await page.screenshot(
-            path=path,
-            full_page=True
-        )
-
-        print(f"✅ Screenshot saved: {path}")
-
-        return path
-
-    except Exception as e:
-
-        print(f"❌ Screenshot failed: {e}")
-
-        return ""
 
 async def wait_for_bot_text(page: Page, keywords: list[str], timeout_ms: int = TIMEOUT_BOT) -> bool:
     """Wait until any of the keywords appear in the chat section."""
