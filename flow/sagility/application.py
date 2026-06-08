@@ -26,7 +26,12 @@ ARTIFACTS_DIR   = "artifacts"
 CANDIDATE_NAME  = "John Thomas"
 CANDIDATE_PHONE = "3479345919"
 CANDIDATE_PIN   = "90001"
-RESUME_PATH     = os.path.join(os.path.dirname(__file__), "Resume_IST.pdf")
+RESUME_PATH = os.path.join(
+    BASE_DIR,
+    "test_data",
+    "resumes",
+    "Resume_IST.pdf"
+)
 
 # Timeouts (from flow document)
 TIMEOUT_WEBSITE   = 15_000   # ms
