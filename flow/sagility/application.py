@@ -29,7 +29,7 @@ CANDIDATE_PIN   = "90001"
 
 BASE_DIR = os.path.dirname(
     os.path.dirname(
-        os.path.dirname(file)
+        os.path.dirname(__file__)
     )
 )
 
