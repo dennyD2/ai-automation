@@ -759,7 +759,7 @@ async def stage6_resume(page: Page, candidate_email: str) -> list[StepResult]:
                         uploaded = True
                         break
                     else:
-                        step15.fail("[UPLOAD_FAILURE]", f"sample_resume.pdf not found at {RESUME_PATH}. Commit it to the repo root.")
+                        step15.fail("[UPLOAD_FAILURE]",f"Resume file not found at: {RESUME_PATH}")
                         step15.screenshot = await screenshot(page, "STEP_15_fail")
                         step15.duration = time.time() - t0
                         results.append(step15)
