@@ -117,7 +117,18 @@ async def run_prescreening(page: Page):
 
         print("✅ Assessment stage reached")
 
-    except Exception as e:
-        print(f"❌ PRE-SCREENING ERROR: {e}")
-        raise
-    
+        except Exception as e:
+            print(f"❌ PRE-SCREENING ERROR: {e}")
+            raise
+        
+        print("🔹 Waiting for assessment page")
+        
+        await page.get_by_text(
+            re.compile(
+                "complete the assessment questionnaire",
+                re.I
+            )
+        ).wait_for(timeout=15000)
+        
+        print("✅ Assessment stage reached")
+            
