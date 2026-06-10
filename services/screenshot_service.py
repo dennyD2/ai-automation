@@ -8,16 +8,15 @@ os.makedirs(
 SCREENSHOT_DIR,
 exist_ok=True
 )
-
 async def screenshot(
 page: Page,
 name: str
 ) -> str:
 
-    path = os.path.join(
-        SCREENSHOT_DIR,
-        f"{name}.png"
-    )
+path = os.path.join(
+    SCREENSHOT_DIR,
+    f"{name}.png"
+)
 
 try:
 
@@ -45,3 +44,4 @@ except Exception as e:
     print(f"❌ Screenshot failed: {e}")
 
     return ""
+
