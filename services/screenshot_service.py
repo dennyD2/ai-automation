@@ -14,7 +14,6 @@ page: Page,
 name: str
 ) -> str:
 
-```
 path = os.path.join(
     SCREENSHOT_DIR,
     f"{name}.png"
@@ -46,5 +45,3 @@ except Exception as e:
     print(f"❌ Screenshot failed: {e}")
 
     return ""
-```
-
