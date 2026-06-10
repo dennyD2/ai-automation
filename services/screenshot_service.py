@@ -14,10 +14,10 @@ page: Page,
 name: str
 ) -> str:
 
-path = os.path.join(
-    SCREENSHOT_DIR,
-    f"{name}.png"
-)
+    path = os.path.join(
+        SCREENSHOT_DIR,
+        f"{name}.png"
+    )
 
 try:
 
