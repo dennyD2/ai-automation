@@ -8,10 +8,7 @@ os.makedirs(
 SCREENSHOT_DIR,
 exist_ok=True
 )
-async def screenshot(
-page: Page,
-name: str
-) -> str:
+async def screenshot(page: Page, name: str) -> str:
 
 path = os.path.join(
     SCREENSHOT_DIR,
