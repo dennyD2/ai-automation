@@ -13,7 +13,6 @@ from datetime import datetime
 from typing import Optional
 from core.step_result import StepResult
 from services.screenshot_service import screenshot
-from services.email_service import generate_unique_email
 from flow.sagility.prescreening import run_prescreening
 
 
