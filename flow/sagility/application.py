@@ -1096,6 +1096,7 @@ async def run_monitor():
                 )
                 
                 success_result.status = "PASS"
+                
                 print(
                 f"PAGE CLOSED STATUS: "
                 f"{portal_page.is_closed()}"
@@ -1106,15 +1107,6 @@ async def run_monitor():
                 "SUCCESS_FINAL"
                 )
                 
-                success_result.screenshot = await screenshot(
-                    portal_page,
-                    "SUCCESS_FINAL"
-                )
-                print(
-                    f"PAGE CLOSED STATUS: "
-                    f"{portal_page.is_closed()}"
-                )
-
                 print(
                     f"✅ Success screenshot saved: "
                     f"{success_result.screenshot}"
