@@ -25,20 +25,39 @@ async def run_prescreening(page: Page):
         # Question 1
         print("🔹 Answering full-time student question")
 
-        await page.get_by_label("No").first.click()
+        student_section = page.locator(
+            "text=Are you currently a full-time student?"
+        )
 
+        await student_section.locator(
+            ".."
+        ).get_by_text("No").click()
+
+        print("✅ Student question answered")
         print("✅ Selected No")
 
         # Knockout Question:
         # Have you ever been terminated from a position?
         # MUST answer No
 
-        await page.get_by_text("No").nth(1).click()
+        terminated_section = page.locator(
+            "text=Have you ever been terminated from a position?"
+        )
+        
+        await terminated_section.locator(
+            ".."
+        ).get_by_text("No").click()
+        
+        print("✅ Terminated question answered")
 
         await page.get_by_role(
             "button",
             name="Submit"
         ).click()
+
+    except Exception as e:
+        print(f"❌ PRE-SCREENING ERROR: {e}")
+        raise
 
         # Knockout Question:
         # Have you ever been convicted of a criminal offense?
