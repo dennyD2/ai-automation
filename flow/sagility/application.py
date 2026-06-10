@@ -937,6 +937,7 @@ async def run_monitor():
 
     print(f"\n{'='*60}")
     print(f"  🚀  Sagility Production Monitor")
+    candidate_email = ts_email()
     print(f"  📧  Candidate email : {candidate_email}")
     print(f"  🌐  Portal URL      : {PORTAL_URL}")
     print(f"{'='*60}\n")
