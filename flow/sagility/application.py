@@ -14,6 +14,8 @@ from typing import Optional
 from core.step_result import StepResult
 from services.screenshot_service import screenshot
 from flow.sagility.prescreening import run_prescreening
+from flow.sagility.assessment import run_assessment
+
 
 import urllib.request
 import requests
@@ -1043,6 +1045,7 @@ async def run_monitor():
         )
         if r: _add(r)
         await run_prescreening(portal_page)
+        await run_assessment(portal_page)
 
     # ── Reports ────────────────────────────────────────────────────────────────
         duration = time.time() - start_time
