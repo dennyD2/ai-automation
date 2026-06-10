@@ -1,59 +1,79 @@
+import re
 from playwright.async_api import Page
 
 async def run_prescreening(page: Page):
-    print("\n===== PRE-SCREENING STAGE =====")
+    try:
+        print("\n===== PRE-SCREENING STAGE =====")
 
-    # Question:
-    # Are you currently a full-time student?
-    # Safe Answer: No
+        await page.get_by_text(
+            re.compile(
+                "before we move forward",
+                re.I
+            )
+        ).wait_for(timeout=15000)
 
-    await page.get_by_text("No").nth(0).click()
+        print("✅ Pre-screening content detected")
 
-    await page.get_by_role(
-        "button",
-        name="Submit"
-    ).click()
+        body = await page.evaluate(
+            "() => document.body.innerText"
+        )
 
-    # Knockout Question:
-    # Have you ever been terminated from a position?
-    # MUST answer No
+        print("\n===== PRE-SCREENING PAGE TEXT =====")
+        print(body[:5000])
+        print("===================================\n")
 
-    await page.get_by_text("No").nth(1).click()
+        # Question 1
+        print("🔹 Answering full-time student question")
 
-    await page.get_by_role(
-        "button",
-        name="Submit"
-    ).click()
+        await page.get_by_label("No").first.click()
 
-    # Knockout Question:
-    # Have you ever been convicted of a criminal offense?
-    # MUST answer No
+        print("✅ Selected No")
 
-    await page.get_by_text("No").nth(2).click()
+        # Knockout Question:
+        # Have you ever been terminated from a position?
+        # MUST answer No
 
-    await page.get_by_role(
-        "button",
-        name="Submit"
-    ).click()
+        await page.get_by_text("No").nth(1).click()
 
-    await page.locator("select").nth(0).select_option(
-        label="Stability"
-    )
+        await page.get_by_role(
+            "button",
+            name="Submit"
+        ).click()
 
-    await page.get_by_role(
-        "button",
-        name="Continue"
-    ).click()
+        # Knockout Question:
+        # Have you ever been convicted of a criminal offense?
+        # MUST answer No
 
-    await page.locator("select").nth(1).select_option(
-        label="Work-life balance"
-    )
+        await page.get_by_text("No").nth(2).click()
 
-    await page.get_by_role(
-        "button",
-        name="Continue"
-    ).click()
+        await page.get_by_role(
+            "button",
+            name="Submit"
+        ).click()
 
-    await page.wait_for_timeout(3000)
+        await page.locator("select").nth(0).select_option(
+            label="Stability"
+        )
 
-    print("✅ Pre-screening completed")
+        await page.get_by_role(
+            "button",
+            name="Continue"
+        ).click()
+
+        await page.locator("select").nth(1).select_option(
+            label="Work-life balance"
+        )
+
+        await page.get_by_role(
+            "button",
+            name="Continue"
+        ).click()
+
+        await page.wait_for_timeout(3000)
+
+        print("✅ Pre-screening completed")
+
+    except Exception as e:
+        print(f"❌ PRE-SCREENING ERROR: {e}")
+        raise
+        
