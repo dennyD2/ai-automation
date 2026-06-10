@@ -103,17 +103,26 @@ async def run_prescreening(page: Page):
         ).nth(1).click()
 
         print("✅ Continued second dropdown")
-        print("🔹 Waiting for assessment stage")
+        print("🔹 Waiting for transition to next stage")
 
-        await page.wait_for_function(
-            """
-            () => {
-                const text = document.body.innerText.toLowerCase();
-                return text.includes('assessment');
-            }
-            """,
-            timeout=15000
-        )
+        await page.get_by_text(
+            re.compile(
+                "taking you to next stage",
+                re.I
+            )
+        ).wait_for(timeout=10000)
+
+        print("✅ Transition detected")
+
+        print("🔹 Waiting for assessment page")
+
+        await page.get_by_role(
+            "button",
+            name=re.compile(
+                "start assessment|skip assessment",
+                re.I
+            )
+        ).first.wait_for(timeout=20000)
 
         print("✅ Assessment stage reached")
 
