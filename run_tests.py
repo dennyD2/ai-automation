@@ -11,6 +11,7 @@ import os
 import re
 import sys
 from typing import Any, Dict, List
+from services.screenshot_service import screenshot
 
 import pandas as pd
 from playwright.async_api import async_playwright, Page
