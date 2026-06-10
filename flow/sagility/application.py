@@ -70,7 +70,7 @@ RUN_URL = _ci_run_url()
 os.makedirs(ARTIFACTS_DIR, exist_ok=True)
 
 def ts_email() -> str:
-    return f"bling2cloud+{datetime.utcnow().strftime('%Y%m%d%H%M%S')}@gmail.com"
+    return f"bling2cloud+{datetime.utcnow().strftime('%d%H%M%S')}@gmail.com"
 
 async def wait_for_bot_text(page: Page, keywords: list[str], timeout_ms: int = TIMEOUT_BOT) -> bool:
     """Wait until any of the keywords appear in the chat section."""
@@ -933,7 +933,6 @@ async def stage7_video(page: Page, candidate_email: str) -> list[StepResult]:
 async def run_monitor():
     os.makedirs(ARTIFACTS_DIR, exist_ok=True)
     all_results: list[StepResult] = []
-    candidate_email = generate_unique_email()
     start_time = time.time()
     failed_step: Optional[StepResult] = None
 
