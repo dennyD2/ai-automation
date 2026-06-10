@@ -11,16 +11,11 @@ def generate_unique_email():
         counter = int(f.read().strip())
 
     counter += 1
-  # ... rest indented under the function
 
-with open(COUNTER_FILE, "w") as f:
+    with open(COUNTER_FILE, "w") as f:
+        f.write(str(counter))
 
-    f.write(str(counter))
-
-email = f"bling2cloud+{counter}@gmail.com"
-
-print(f"✅ Generated email: {email}")
-
-return email
-
-
+    email = f"bling2cloud+{counter}@gmail.com"
+    print(f"✅ Generated email: {email}")
+    
+    return email
