@@ -1,15 +1,13 @@
 import os
-
 from playwright.async_api import Page
 
 SCREENSHOT_DIR = "artifacts/screenshots"
 
-os.makedirs(
-SCREENSHOT_DIR,
-exist_ok=True
-)
+os.makedirs(SCREENSHOT_DIR, exist_ok=True)
+
 async def screenshot(page: Page, name: str) -> str:
 
+```
 path = os.path.join(
     SCREENSHOT_DIR,
     f"{name}.png"
@@ -18,11 +16,7 @@ path = os.path.join(
 try:
 
     if page.is_closed():
-
-        print(
-            "⚠️ Cannot take screenshot — page already closed"
-        )
-
+        print("⚠️ Cannot take screenshot — page already closed")
         return ""
 
     print(f"🔹 Taking screenshot: {path}")
@@ -41,4 +35,4 @@ except Exception as e:
     print(f"❌ Screenshot failed: {e}")
 
     return ""
-
+```
