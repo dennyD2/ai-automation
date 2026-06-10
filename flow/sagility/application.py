@@ -14,6 +14,7 @@ from typing import Optional
 from core.step_result import StepResult
 from services.screenshot_service import screenshot
 from services.email_service import generate_unique_email
+from flow.sagility.prescreening import run_prescreening
 
 
 import urllib.request
@@ -1032,8 +1033,7 @@ async def run_monitor():
             "STAGE_7"
         )
         if r: _add(r)
-
-        
+        await run_prescreening(portal_page)
 
     # ── Reports ────────────────────────────────────────────────────────────────
         duration = time.time() - start_time
