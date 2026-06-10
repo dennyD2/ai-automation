@@ -44,8 +44,6 @@ async def run_assessment(page: Page):
         )
 
         print("\n===== INTERVIEW PAGE TEXT =====")
-        print(body[:5000])
-        print("================================\n")
 
     except Exception as e:
         print(f"❌ ASSESSMENT ERROR: {e}")
