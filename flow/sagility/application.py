@@ -15,7 +15,6 @@ from core.step_result import StepResult
 from services.screenshot_service import screenshot
 from flow.sagility.prescreening import run_prescreening
 
-
 import urllib.request
 import requests
 
