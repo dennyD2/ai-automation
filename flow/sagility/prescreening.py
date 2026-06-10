@@ -116,14 +116,20 @@ async def run_prescreening(page: Page):
 
         print("🔹 Waiting for assessment page")
 
-        await page.get_by_role(
-            "button",
-            name=re.compile(
-                "start assessment|skip assessment",
-                re.I
-            )
-        ).first.wait_for(timeout=20000)
-
+        await page.wait_for_function(
+            """
+            () => {
+                const text = document.body.innerText.toLowerCase();
+                return (
+                    text.includes('start assessment') ||
+                    text.includes('skip assessment')
+                );
+            }
+            """,
+            timeout=20000
+        )
+        
+        print("✅ Assessment buttons detected")
         print("✅ Assessment stage reached")
 
         print("🔹 Waiting for assessment page")
