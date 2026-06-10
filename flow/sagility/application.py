@@ -24,9 +24,15 @@ from playwright.async_api import async_playwright, Page
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
-PORTAL_URL      = "https://hire-qa.bling-ai.com/sagility?reqId=REQ-017239&country='US'&location='TX'&source=SOURCE-3-125&profileID=IND007053"
+PORTAL_URL = os.getenv("PORTAL_URL")
+HEADLESS = (
+    os.getenv(
+        "HEADLESS",
+        "true"
+    ).lower() == "true"
+)
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK", "")
-ARTIFACTS_DIR   = "artifacts"
+ARTIFACTS_DIR = "artifacts"
 
 # Candidate test data (from flow document)
 CANDIDATE_NAME  = "John Thomas"
