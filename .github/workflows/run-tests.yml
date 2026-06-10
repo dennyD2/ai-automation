@@ -81,7 +81,7 @@ jobs:
           role = "${{ github.event.inputs.role_type }}"
           
           if env == "QA":
-              print(URLS[f"QA_{role.upper()}"])
+              print(URLS["QA"][role])
           else:
               print(URLS[env])
           
