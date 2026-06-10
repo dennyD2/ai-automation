@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main ]
   #schedule:
-    #- cron: '0 */2 * * *'   # every 2 hours — production monitoring
+    #- cron: '0 */6 * * *'   # every 6 hours — production monitoring
   workflow_dispatch:
     inputs:
       company:
@@ -15,6 +15,14 @@ on:
         options:
           - sagility
           - trajector
+      environment:
+        description: "Environment"
+        required: true
+        default: "QA"
+      headless:
+        description: "Run headless browser"
+        required: true
+        default: "true"
 
 jobs:
   test:
@@ -38,10 +46,9 @@ jobs:
       - name: Run Tests
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          DISCORD_WEBHOOK:  ${{ secrets.DISCORD_WEBHOOK }}
-        #run: python run_tests.py ${{ github.event.inputs.company || 'sagility' }}
-        run : python -m flow.sagility.application
-        
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: python -m flow.sagility.application
+
       - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
