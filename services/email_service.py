@@ -3,18 +3,15 @@ import os
 COUNTER_FILE = "test_data/runtime/email_counter.txt"
 
 def generate_unique_email():
+    if not os.path.exists(COUNTER_FILE):
+        with open(COUNTER_FILE, "w") as f:
+            f.write("1000")
 
+    with open(COUNTER_FILE, "r") as f:
+        counter = int(f.read().strip())
 
-if not os.path.exists(COUNTER_FILE):
-
-    with open(COUNTER_FILE, "w") as f:
-        f.write("1000")
-
-with open(COUNTER_FILE, "r") as f:
-
-    counter = int(f.read().strip())
-
-counter += 1
+    counter += 1
+  # ... rest indented under the function
 
 with open(COUNTER_FILE, "w") as f:
 
