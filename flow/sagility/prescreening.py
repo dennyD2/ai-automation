@@ -19,8 +19,6 @@ async def run_prescreening(page: Page):
         )
 
         print("\n===== PRE-SCREENING PAGE TEXT =====")
-        print(body[:5000])
-        print("===================================\n")
 
         # Question 1
         print("🔹 Answering full-time student question")
@@ -55,44 +53,71 @@ async def run_prescreening(page: Page):
             name="Submit"
         ).click()
 
-    except Exception as e:
-        print(f"❌ PRE-SCREENING ERROR: {e}")
-        raise
-
         # Knockout Question:
         # Have you ever been convicted of a criminal offense?
         # MUST answer No
 
-        await page.get_by_text("No").nth(2).click()
+        criminal_section = page.locator(
+            "text=Have you ever been convicted of a criminal offense?"
+        )
+
+        await criminal_section.locator(
+            ".."
+        ).get_by_text("No").click()
+
+        print("✅ Criminal offense question answered")
 
         await page.get_by_role(
             "button",
             name="Submit"
-        ).click()
+        ).nth(1).click()
+
+        print("✅ Submitted criminal offense section")
+
+        # Job fit dropdown
 
         await page.locator("select").nth(0).select_option(
             label="Stability"
         )
 
+        print("✅ Selected Stability")
+
         await page.get_by_role(
             "button",
             name="Continue"
-        ).click()
+        ).nth(0).click()
+
+        print("✅ Continued first dropdown")
+
+        # Job priorities dropdown
 
         await page.locator("select").nth(1).select_option(
             label="Work-life balance"
         )
 
+        print("✅ Selected Work-life balance")
+
         await page.get_by_role(
             "button",
             name="Continue"
-        ).click()
+        ).nth(1).click()
 
-        await page.wait_for_timeout(3000)
+        print("✅ Continued second dropdown")
+        print("🔹 Waiting for assessment stage")
 
-        print("✅ Pre-screening completed")
+        await page.wait_for_function(
+            """
+            () => {
+                const text = document.body.innerText.toLowerCase();
+                return text.includes('assessment');
+            }
+            """,
+            timeout=15000
+        )
+
+        print("✅ Assessment stage reached")
 
     except Exception as e:
         print(f"❌ PRE-SCREENING ERROR: {e}")
         raise
-        
+    
