@@ -895,7 +895,18 @@ async def stage7_video(page: Page, candidate_email: str) -> list[StepResult]:
             try:
                 if await loc.count() > 0:
                     await loc.first.click(timeout=TIMEOUT_VIDEO)
+                    print("🔹 Waiting for pre-screening transition")
+                    
+                    await page.get_by_text(
+                        re.compile(
+                            "before we move forward",
+                            re.I
+                        )
+                    ).wait_for(timeout=15000)
+                    
+                    print("✅ Pre-screening page loaded")
                     clicked = True
+                    
                     break
             except Exception:
                 continue
