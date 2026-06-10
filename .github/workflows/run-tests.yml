@@ -20,6 +20,14 @@ on:
           - QA
           - DEV
           - PROD
+      role_type:
+        description: 'Role Type'
+        required: true
+        default: 'voice'
+        type: choice
+        options:
+          - voice
+          - non_voice
       headless:
         description: 'Run browser in headless mode'
         required: true
@@ -39,6 +47,7 @@ jobs:
       ENVIRONMENT: ${{ github.event.inputs.environment || 'QA' }}
       HEADLESS: ${{ github.event.inputs.headless || 'true' }}
       COMPANY: ${{ github.event.inputs.company || 'sagility' }}
+      ROLE_TYPE: ${{ github.event.inputs.role_type || 'voice' }}
 
     steps:
       - name: Checkout Repository
@@ -60,11 +69,29 @@ jobs:
           echo "Company      : $COMPANY"
           echo "Environment  : $ENVIRONMENT"
           echo "Headless     : $HEADLESS"
+          echo "Role Type    : $ROLE_TYPE"
+
+      - name: Set Portal URL
+        run: |
+          PORTAL_URL=$(python -c "
+from configs.config_sagility import URLS
+
+env='${{ github.event.inputs.environment }}'
+role='${{ github.event.inputs.role_type }}'
+
+if env == 'QA':
+    print(URLS[f'QA_{role.upper()}'])
+else:
+    print(URLS[env])
+")
+          echo "PORTAL_URL=$PORTAL_URL" >> $GITHUB_ENV
 
       - name: Run Automation
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          HEADLESS: ${{ github.event.inputs.headless }}
+          PORTAL_URL: ${{ env.PORTAL_URL }}
         run: |
           python -m flow.${{ github.event.inputs.company || 'sagility' }}.application
 
