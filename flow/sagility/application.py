@@ -13,6 +13,8 @@ from datetime import datetime
 from typing import Optional
 from core.step_result import StepResult
 from services.screenshot_service import screenshot
+from services.email_service import generate_unique_email
+
 
 import urllib.request
 import requests
@@ -930,7 +932,7 @@ async def stage7_video(page: Page, candidate_email: str) -> list[StepResult]:
 async def run_monitor():
     os.makedirs(ARTIFACTS_DIR, exist_ok=True)
     all_results: list[StepResult] = []
-    candidate_email = ts_email()
+    candidate_email = generate_unique_email()
     start_time = time.time()
     failed_step: Optional[StepResult] = None
 
