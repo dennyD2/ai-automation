@@ -1,10 +1,6 @@
 name: AI Agentic Test Runner — Production Monitor
 
 on:
-  push:
-    branches: [ main ]
-  #schedule:
-    #- cron: '0 */6 * * *'   # every 6 hours — production monitoring
   workflow_dispatch:
     inputs:
       company:
@@ -16,20 +12,36 @@ on:
           - sagility
           - trajector
       environment:
-        description: "Environment"
+        description: 'Environment'
         required: true
-        default: "QA"
+        default: 'QA'
+        type: choice
+        options:
+          - QA
+          - DEV
+          - PROD
       headless:
-        description: "Run headless browser"
+        description: 'Run browser in headless mode'
         required: true
-        default: "true"
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+  schedule:
+    - cron: '0 */6 * * *'
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      ENVIRONMENT: ${{ github.event.inputs.environment || 'QA' }}
+      HEADLESS: ${{ github.event.inputs.headless || 'true' }}
+      COMPANY: ${{ github.event.inputs.company || 'sagility' }}
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Setup Python
@@ -39,17 +51,24 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
           python -m playwright install chromium --with-deps
 
-      - name: Run Tests
+      - name: Display Runtime Configuration
+        run: |
+          echo "Company      : $COMPANY"
+          echo "Environment  : $ENVIRONMENT"
+          echo "Headless     : $HEADLESS"
+
+      - name: Run Automation
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-        run: python -m flow.sagility.application
+        run: |
+          python -m flow.${{ github.event.inputs.company || 'sagility' }}.application
 
-      - name: Upload artifacts
+      - name: Upload Artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
