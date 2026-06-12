@@ -105,12 +105,21 @@ async def run_prescreening(page: Page):
         print("✅ Continued second dropdown")
         print("🔹 Waiting for transition to next stage")
 
-        await page.get_by_text(
-            re.compile(
-                "taking you to next stage",
-                re.I
-            )
-        ).wait_for(timeout=10000)
+        await page.wait_for_function(
+            """
+            () => {
+                const text = document.body.innerText.toLowerCase();
+                return (
+                    text.includes('start assessment') ||
+                    text.includes('skip assessment') ||
+                    text.includes('internet speed') ||
+                    text.includes('microphone') ||
+                    text.includes('camera access')
+                );
+            }
+            """,
+            timeout=30000
+        )
 
         print("✅ Transition detected")
 
