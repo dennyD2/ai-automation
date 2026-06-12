@@ -25,17 +25,17 @@ class PrescreeningPage:
         ).get_by_text("No").click()
 
         print("✅ Terminated question answered")
-
-    async def answer_criminal_question(self):
-        section = self.page.locator(
-            "text=Have you ever been convicted of a criminal offense?"
-        )
-
-        await section.locator(
-            ".."
-        ).get_by_text("No").click()
-
-        print("✅ Criminal offense question answered")
+        
+        async def answer_criminal_question(self):
+            section = self.page.locator(
+                re.compile(r"convicted.*criminal", re.I)
+            )
+            
+            await section.locator(
+                ".."
+            ).get_by_text("No").click()
+            
+            print("✅ Criminal offense question answered")
 
     async def submit_knockout_questions(self):
         await self.page.get_by_role(
