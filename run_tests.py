@@ -59,9 +59,6 @@ SCOPE = getattr(_cfg, "SCOPE", {})
 ARTIFACTS      = "artifacts"
 MAX_STEPS      = 15        # increased for flow-driven tests
 MAX_RETRIES    = 2         # retries for flaky failures
-MODEL          = "deepseek-chat"
-API_URL        = "https://api.deepseek.com/v1/chat/completions"
-API_KEY        = os.getenv("DEEPSEEK_API_KEY", "")
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK", "")
 
 # ── Load flow document (DOCX) if present ─────────────────────────────────────
@@ -830,22 +827,28 @@ def to_str(x: Any) -> str:
 
 # ── entry point ───────────────────────────────────────────────────────────────
 
-async def main():
-    if not API_KEY:
-        print("❌  DEEPSEEK_API_KEY is not set.")
-        print("    Export it:  export DEEPSEEK_API_KEY=sk-...")
-        sys.exit(1)
+import os
+from typing import List, Dict
 
+async def main():
+    # Create artifacts directory if it doesn't exist
     os.makedirs(ARTIFACTS, exist_ok=True)
+    
     all_results: List[Dict] = []
+    
+    # Define output file paths
     out_json = os.path.join(ARTIFACTS, "results.json")
     out_html = os.path.join(ARTIFACTS, "report.html")
-
-    # CI run URL for Discord link (set by GitHub Actions)
+    
+    # CI run URL for Discord link
     run_url = ""
+    
+    # Get GitHub environment variables
     gh_server = os.getenv("GITHUB_SERVER_URL", "")
-    gh_repo   = os.getenv("GITHUB_REPOSITORY", "")
+    gh_repo = os.getenv("GITHUB_REPOSITORY", "")
     gh_run_id = os.getenv("GITHUB_RUN_ID", "")
+    
+    # Construct run URL if all GitHub variables are present
     if gh_server and gh_repo and gh_run_id:
         run_url = f"{gh_server}/{gh_repo}/actions/runs/{gh_run_id}"
 
