@@ -1,3 +1,4 @@
+import re
 from playwright.async_api import Page
 
 class PrescreeningPage:
@@ -25,17 +26,20 @@ class PrescreeningPage:
         ).get_by_text("No").click()
 
         print("✅ Terminated question answered")
-        
-        async def answer_criminal_question(self):
-            section = self.page.locator(
-                re.compile(r"convicted.*criminal", re.I)
+
+    async def answer_criminal_question(self):
+        question = self.page.get_by_text(
+            re.compile(
+                "convicted.*criminal",
+                re.I
             )
-            
-            await section.locator(
-                ".."
-            ).get_by_text("No").click()
-            
-            print("✅ Criminal offense question answered")
+        )
+
+        container = question.locator("xpath=..")
+
+        await container.get_by_text("No").click()
+
+        print("✅ Criminal offense question answered")
 
     async def submit_knockout_questions(self):
         await self.page.get_by_role(
