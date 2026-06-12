@@ -91,7 +91,6 @@ jobs:
 
       - name: Run Automation
         env:
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           HEADLESS: ${{ github.event.inputs.headless }}
         run: |
