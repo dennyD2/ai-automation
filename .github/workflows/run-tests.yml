@@ -1,4 +1,4 @@
-name: AI Agentic Test Runner — Production Monitor
+name: Test Sagility Flow check 
 
 on:
   workflow_dispatch:
