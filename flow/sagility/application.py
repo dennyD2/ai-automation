@@ -1049,9 +1049,28 @@ async def run_monitor():
             lambda: stage7_video(portal_page, candidate_email),
             "STAGE_7"
         )
-        if r: _add(r)
-        await run_prescreening(portal_page)
-        await run_assessment(portal_page)
+        if r: 
+            _add(r)
+        
+        try:
+            await run_prescreening(portal_page)
+        except Exception as e:
+            print(f"❌ PRE-SCREENING FAILURE: {e}")
+            await screenshot(
+                portal_page,
+                "PRESCREENING_FAILURE"
+            )
+            raise
+        
+        try:
+            await run_assessment(portal_page)
+        except Exception as e:
+            print(f"❌ ASSESSMENT FAILURE: {e}")
+            await screenshot(
+                portal_page,
+                "ASSESSMENT_FAILURE"
+            )
+            raise
 
     # ── Reports ────────────────────────────────────────────────────────────────
         duration = time.time() - start_time
