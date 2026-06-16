@@ -965,217 +965,267 @@ async def stage7_video(page: Page, candidate_email: str) -> list[StepResult]:
 # ── Main orchestrator ─────────────────────────────────────────────────────────
 
 async def run_monitor():
-    os.makedirs(ARTIFACTS_DIR, exist_ok=True)
-    all_results: list[StepResult] = []
-    start_time = time.time()
-    failed_step: Optional[StepResult] = None
-
-    print(f"\n{'='*60}")
-    print(f"  🚀  Sagility Production Monitor")
-    candidate_email = ts_email()
-    print(f"  📧  Candidate email : {candidate_email}")
-    print(f"  🌐  Portal URL      : {PORTAL_URL}")
-    print(f"{'='*60}\n")
-
-    async with async_playwright() as pw:
-        browser = await pw.chromium.launch(headless=True)
-
-        # Two isolated contexts
-        portal_ctx = await browser.new_context(viewport={"width": 1280, "height": 800})
-        portal_page = await portal_ctx.new_page()
-        portal_page.set_default_timeout(15000)
-
-        def _add(step_or_list):
-            nonlocal failed_step
-            items = step_or_list if isinstance(step_or_list, list) else [step_or_list]
-            for s in items:
-                all_results.append(s)
-                emoji = "✅" if s.status == "PASS" else "❌"
-                print(f"  {emoji}  [{s.step_id}] {s.name} — {s.status}"
-                      + (f"  {s.tag} {s.reason[:80]}" if s.status == "FAIL" else ""))
-                if s.status == "FAIL" and not failed_step:
-                    failed_step = s
-
-        async def _run_or_skip(coro_factory, label: str):
-            """Run stage. If previous stage already failed, emit SKIP for this stage."""
-            if failed_step:
-                skip = StepResult(label, f"Skipped — previous failure in {failed_step.step_id}")
-                skip.status = "SKIP"
-                all_results.append(skip)
-                return None
-            return await coro_factory()
-
-        # ── Execute all stages ─────────────────────────────────────────────────
-
-        print("── STAGE 1: Portal Launch")
-        r = await stage1_portal_launch(portal_page, candidate_email)
-        _add(r)
-
-        print("\n── STAGE 2: Consent")
-        r = await _run_or_skip(
-            lambda: stage2_consent(portal_page, candidate_email),"STAGE_2")
-        if r: _add(r)
-
-        print("\n── STAGE 3: Email Submission (Step 4 = email generation — done in code)")
-        r = await _run_or_skip(
-            lambda: stage3_email(portal_page, candidate_email),
-            "STEP_03"
-        )
-        if r: _add(r)
-
-        print("\n── STAGE 4: Static OTP")
-        otp = ""
-        
-        if not failed_step:
-        
-            otp_step, otp = await stage4_static_otp(
-                portal_page,
-                candidate_email
-            )
-        
-            _add(otp_step)
-        
-        print("\n── STAGE 4 (cont.): Submit OTP in Portal")
-        
-        if not failed_step and otp:
-        
-            r = await stage4_submit_otp(
-                portal_page,
-                otp,
-                candidate_email
-            )
-        
-            _add(r)
-
-        print("\n── STAGE 5: Candidate Information")
-        r = await _run_or_skip(
-            lambda: stage5_candidate_info(portal_page, candidate_email),
-            "STAGE_5"
-        )
-        if r: _add(r)
-
-        print("\n── STAGE 6: Resume Upload")
-        r = await _run_or_skip(
-            lambda: stage6_resume(portal_page, candidate_email),
-            "STAGE_6"
-        )
-        if r: _add(r)
-
-        print("\n── STAGE 7: Marketing Video → Pre-Screening")
-        r = await _run_or_skip(
-            lambda: stage7_video(portal_page, candidate_email),
-            "STAGE_7"
-        )
-        if r: 
-            _add(r)
-        
-        try:
-            await run_prescreening(portal_page)
-        except Exception as e:
-            print(f"❌ PRE-SCREENING FAILURE: {e}")
-            await screenshot(
-                portal_page,
-                "PRESCREENING_FAILURE"
-            )
-            raise
-        
-        try:
-            await run_assessment(portal_page)
-        except Exception as e:
-            print(f"❌ ASSESSMENT FAILURE: {e}")
-            await screenshot(
-                portal_page,
-                "ASSESSMENT_FAILURE"
-            )
-            raise
-
-    # ── Reports ────────────────────────────────────────────────────────────────
-        duration = time.time() - start_time
-        passed = sum(1 for r in all_results if r.status == "PASS")
-        failed = sum(1 for r in all_results if r.status == "FAIL")
+    browser = None
+    portal_page = None
+    candidate_email = None
     
-        results_json = os.path.join(ARTIFACTS_DIR, "results.json")
-        with open(results_json, "w", encoding="utf-8") as f:
-            json.dump([r.to_dict() for r in all_results], f, indent=2)
-    
-        report_path = write_report(all_results, candidate_email, duration)
-    
+    try:
+        os.makedirs(ARTIFACTS_DIR, exist_ok=True)
+        all_results: list[StepResult] = []
+        start_time = time.time()
+        failed_step: Optional[StepResult] = None
+
         print(f"\n{'='*60}")
-        print(f"  📊  {passed} passed  /  {failed} failed  /  {len(all_results)} total")
-        print(f"  ⏱   Duration: {duration:.1f}s")
-        print(f"  📄  Report  : {report_path}")
-        print(f"  📄  JSON    : {results_json}")
-    
-        # ── Discord Notifications ───────────────────────────────────────────────
-        
-        print("\n===== DISCORD DEBUG =====")
-        
-        print(f"DISCORD_WEBHOOK exists: {bool(DISCORD_WEBHOOK)}")
-        
-        print(f"Failed steps count: {failed}")
-        
-        print("================================\n")
-     
-        print(f"DISCORD_WEBHOOK value: {DISCORD_WEBHOOK[:40] if DISCORD_WEBHOOK else 'EMPTY'}")
-    
-        
-        if DISCORD_WEBHOOK:
-        
-            # Send failure alerts
-            if failed > 0:
-        
-                for r in all_results:
-        
-                    if r.status == "FAIL":
-        
-                        print(f"🚨 Sending failure alert for: {r.step_id}")
-        
-                        await send_discord_alert(
-                            r,
-                            candidate_email
-                        )
-        
-                print(
-                    f"\n  🚨  {failed} STEP(S) FAILED — alerts sent to Discord"
-                )
-        
-                sys.exit(1)
-        
-            # Send success alert
-            else:
-        
-                print("✅ Sending SUCCESS notification to Discord")
-        
-                success_result = StepResult(
-                    "SUCCESS",
-                    "Sagility candidate journey completed successfully"
-                )
-                
-                success_result.status = "PASS"
-                
-                print(
-                f"PAGE CLOSED STATUS: "
-                f"{portal_page.is_closed()}"
-                )
-                
-                success_result.screenshot = await screenshot(
-                portal_page,
-                "SUCCESS_FINAL"
-                )
-                
-                print(
-                    f"✅ Success screenshot saved: "
-                    f"{success_result.screenshot}"
-                )
-                
-                await send_discord_alert(
-                    success_result,
+        print(f"  🚀  Sagility Production Monitor")
+        candidate_email = ts_email()
+        print(f"  📧  Candidate email : {candidate_email}")
+        print(f"  🌐  Portal URL      : {PORTAL_URL}")
+        print(f"{'='*60}\n")
+
+        async with async_playwright() as pw:
+            browser = await pw.chromium.launch(headless=True)
+
+            # Two isolated contexts
+            portal_ctx = await browser.new_context(viewport={"width": 1280, "height": 800})
+            portal_page = await portal_ctx.new_page()
+            portal_page.set_default_timeout(15000)
+
+            def _add(step_or_list):
+                nonlocal failed_step
+                items = step_or_list if isinstance(step_or_list, list) else [step_or_list]
+                for s in items:
+                    all_results.append(s)
+                    emoji = "✅" if s.status == "PASS" else "❌"
+                    print(f"  {emoji}  [{s.step_id}] {s.name} — {s.status}"
+                          + (f"  {s.tag} {s.reason[:80]}" if s.status == "FAIL" else ""))
+                    if s.status == "FAIL" and not failed_step:
+                        failed_step = s
+
+            async def _run_or_skip(coro_factory, label: str):
+                """Run stage. If previous stage already failed, emit SKIP for this stage."""
+                if failed_step:
+                    skip = StepResult(label, f"Skipped — previous failure in {failed_step.step_id}")
+                    skip.status = "SKIP"
+                    all_results.append(skip)
+                    return None
+                return await coro_factory()
+
+            # ── Execute all stages ─────────────────────────────────────────────────
+
+            print("── STAGE 1: Portal Launch")
+            r = await stage1_portal_launch(portal_page, candidate_email)
+            _add(r)
+
+            print("\n── STAGE 2: Consent")
+            r = await _run_or_skip(
+                lambda: stage2_consent(portal_page, candidate_email), "STAGE_2")
+            if r:
+                _add(r)
+
+            print("\n── STAGE 3: Email Submission (Step 4 = email generation — done in code)")
+            r = await _run_or_skip(
+                lambda: stage3_email(portal_page, candidate_email),
+                "STEP_03"
+            )
+            if r:
+                _add(r)
+
+            print("\n── STAGE 4: Static OTP")
+            otp = ""
+            
+            if not failed_step:
+                otp_step, otp = await stage4_static_otp(
+                    portal_page,
                     candidate_email
                 )
-        
-                print(
-                    "\n  ✅  ALL STEPS PASSED — Sagility candidate journey is healthy"
+                _add(otp_step)
+            
+            print("\n── STAGE 4 (cont.): Submit OTP in Portal")
+            
+            if not failed_step and otp:
+                r = await stage4_submit_otp(
+                    portal_page,
+                    otp,
+                    candidate_email
                 )
-        await browser.close()
+                _add(r)
+
+            print("\n── STAGE 5: Candidate Information")
+            r = await _run_or_skip(
+                lambda: stage5_candidate_info(portal_page, candidate_email),
+                "STAGE_5"
+            )
+            if r:
+                _add(r)
+
+            print("\n── STAGE 6: Resume Upload")
+            r = await _run_or_skip(
+                lambda: stage6_resume(portal_page, candidate_email),
+                "STAGE_6"
+            )
+            if r:
+                _add(r)
+
+            print("\n── STAGE 7: Marketing Video → Pre-Screening")
+            r = await _run_or_skip(
+                lambda: stage7_video(portal_page, candidate_email),
+                "STAGE_7"
+            )
+            if r:
+                _add(r)
+            
+            # Pre-screening
+            try:
+                await run_prescreening(portal_page)
+            except Exception as e:
+                print(f"❌ PRE-SCREENING FAILURE: {e}")
+                await screenshot(
+                    portal_page,
+                    "PRESCREENING_FAILURE"
+                )
+                raise
+            
+            # Assessment
+            try:
+                await run_assessment(portal_page)
+            except Exception as e:
+                print(f"❌ ASSESSMENT FAILURE: {e}")
+                await screenshot(
+                    portal_page,
+                    "ASSESSMENT_FAILURE"
+                )
+                raise
+
+            # ── Reports ────────────────────────────────────────────────────────────────
+            duration = time.time() - start_time
+            passed = sum(1 for r in all_results if r.status == "PASS")
+            failed = sum(1 for r in all_results if r.status == "FAIL")
+        
+            results_json = os.path.join(ARTIFACTS_DIR, "results.json")
+            with open(results_json, "w", encoding="utf-8") as f:
+                json.dump([r.to_dict() for r in all_results], f, indent=2)
+        
+            report_path = write_report(all_results, candidate_email, duration)
+        
+            print(f"\n{'='*60}")
+            print(f"  📊  {passed} passed  /  {failed} failed  /  {len(all_results)} total")
+            print(f"  ⏱   Duration: {duration:.1f}s")
+            print(f"  📄  Report  : {report_path}")
+            print(f"  📄  JSON    : {results_json}")
+        
+            # ── Discord Notifications ───────────────────────────────────────────────
+            
+            print("\n===== DISCORD DEBUG =====")
+            print(f"DISCORD_WEBHOOK exists: {bool(DISCORD_WEBHOOK)}")
+            print(f"Failed steps count: {failed}")
+            print("================================\n")
+            print(f"DISCORD_WEBHOOK value: {DISCORD_WEBHOOK[:40] if DISCORD_WEBHOOK else 'EMPTY'}")
+        
+            if DISCORD_WEBHOOK:
+                # Send failure alerts
+                if failed > 0:
+                    for r in all_results:
+                        if r.status == "FAIL":
+                            print(f"🚨 Sending failure alert for: {r.step_id}")
+                            await send_discord_alert(
+                                r,
+                                candidate_email
+                            )
+                    
+                    print(
+                        f"\n  🚨  {failed} STEP(S) FAILED — alerts sent to Discord"
+                    )
+                    sys.exit(1)
+                
+                # Send success alert
+                else:
+                    print("✅ Sending SUCCESS notification to Discord")
+                    
+                    success_result = StepResult(
+                        "SUCCESS",
+                        "Sagility candidate journey completed successfully"
+                    )
+                    success_result.status = "PASS"
+                    
+                    print(
+                        f"PAGE CLOSED STATUS: "
+                        f"{portal_page.is_closed()}"
+                    )
+                    
+                    success_result.screenshot = await screenshot(
+                        portal_page,
+                        "SUCCESS_FINAL"
+                    )
+                    
+                    print(
+                        f"✅ Success screenshot saved: "
+                        f"{success_result.screenshot}"
+                    )
+                    
+                    await send_discord_alert(
+                        success_result,
+                        candidate_email
+                    )
+                    
+                    print(
+                        "\n  ✅  ALL STEPS PASSED — Sagility candidate journey is healthy"
+                    )
+        
+        # Success screenshot and final Discord notification
+        success_screenshot = await screenshot(
+            portal_page,
+            "SUCCESS_FINAL"
+        )
+        
+        await send_discord_alert(
+            {
+                "status": "SUCCESS",
+                "step": "COMPLETED",
+                "reason": "-",
+                "screenshot": success_screenshot
+            },
+            candidate_email
+        )
+
+    except Exception as e:
+        print(f"❌ GLOBAL FAILURE: {e}")
+
+        failure_screenshot = ""
+
+        try:
+            if portal_page:
+                failure_screenshot = await screenshot(
+                    portal_page,
+                    "GLOBAL_FAILURE"
+                )
+        except Exception as ss_error:
+            print(
+                f"❌ Screenshot failed: "
+                f"{ss_error}"
+            )
+
+        try:
+            await send_discord_alert(
+                {
+                    "status": "FAIL",
+                    "step": "GLOBAL_FAILURE",
+                    "reason": str(e),
+                    "screenshot": failure_screenshot
+                },
+                candidate_email
+            )
+        except Exception as discord_error:
+            print(
+                f"❌ Discord failed: "
+                f"{discord_error}"
+            )
+
+        raise
+
+    finally:
+        if browser:
+            await browser.close()
+
+
 if __name__ == "__main__":
     asyncio.run(run_monitor())
