@@ -230,25 +230,40 @@ async def send_discord_alert(step: StepResult, candidate_email: str = ""):
 
     # ── Send via requests in executor (non-blocking, no extra dependencies) ──
     def _do_post():
-        """Runs in a thread via run_in_executor so it doesn't block the event loop."""
-        if attach_filename:
-            with open(step.screenshot, "rb") as f:
-                # Discord requires: payload_json in data=, file in files= as "files[0]"
-                print(f"🔹 [DISCORD DEBUG] Sending multipart POST (with screenshot) to Discord...")
+            """Synchronous function to send the Discord webhook request."""
+            if attach_filename:
+                with open(step.screenshot, "rb") as f:
+                    print(
+                        f"🔹 [DISCORD DEBUG] Sending multipart POST "
+                        f"(with screenshot) to Discord..."
+                    )
+                    return requests.post(
+                        DISCORD_WEBHOOK,
+                        data={
+                            "payload_json": payload_json_str
+                        },
+                        files={
+                            "file": (
+                                attach_filename,
+                                f,
+                                "image/png"
+                            )
+                        },
+                        timeout=20,
+                    )
+            else:
+                print(
+                    f"🔹 [DISCORD DEBUG] "
+                    f"Sending JSON POST (no screenshot) to Discord..."
+                )
                 return requests.post(
                     DISCORD_WEBHOOK,
-                    data={"payload_json": payload_json_str},
-                    files={"files[0]": (attach_filename, f, "image/png")},
+                    data=payload_json_str,
+                    headers={
+                        "Content-Type": "application/json"
+                    },
                     timeout=20,
                 )
-        else:
-            print(f"🔹 [DISCORD DEBUG] Sending JSON POST (no screenshot) to Discord...")
-            return requests.post(
-                DISCORD_WEBHOOK,
-                data=payload_json_str,
-                headers={"Content-Type": "application/json"},
-                timeout=20,
-            )
 
     try:
         loop = asyncio.get_event_loop()
