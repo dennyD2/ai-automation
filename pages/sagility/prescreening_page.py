@@ -49,30 +49,22 @@ class PrescreeningPage:
 
         print("✅ Submitted criminal offense section")
 
-    async def select_job_fit(self):
-        await self.page.locator(
-            "select"
-        ).nth(0).select_option(
-            label="Stability"
-        )
-
+    async def answer_job_fit_question(self):
+        await self.page.get_by_text(
+            "Stability"
+        ).click()
         print("✅ Selected Stability")
-
-    async def continue_job_fit(self):
+    
         await self.page.get_by_role(
             "button",
             name="Continue"
-        ).nth(0).click()
-
+        ).click()
         print("✅ Continued first dropdown")
-
+    
     async def select_job_priority(self):
-        await self.page.locator(
-            "select"
-        ).nth(1).select_option(
-            label="Work-life balance"
-        )
-
+        await self.page.get_by_text(
+            "Work-life balance"
+        ).click()
         print("✅ Selected Work-life balance")
 
     async def continue_job_priority(self):
