@@ -19,7 +19,6 @@ from flow.sagility.assessment import run_assessment
 
 import urllib.request
 import requests
-import httpx  # async-safe HTTP client
 
 from playwright.async_api import async_playwright, Page
 
@@ -220,27 +219,29 @@ async def send_discord_alert(step: StepResult, candidate_email: str = ""):
     payload_json_str = json.dumps(payload)
     print(f"🔹 [DISCORD DEBUG] payload_json length = {len(payload_json_str)} chars")
 
-    # ── Send via httpx (async-safe, avoids blocking the event loop) ──────────
-    try:
+    # ── Send via requests in executor (non-blocking, no extra dependencies) ──
+    def _do_post():
+        """Runs in a thread via run_in_executor so it doesn't block the event loop."""
         if attach_filename:
-            screenshot_file = open(step.screenshot, "rb")
-            # multipart/form-data with file attachment
-            files_payload = {
-                "payload_json": (None, payload_json_str, "application/json"),
-                "file": (attach_filename, screenshot_file, "image/png"),
-            }
-            print(f"🔹 [DISCORD DEBUG] Sending multipart POST (with screenshot) to Discord...")
-            async with httpx.AsyncClient(timeout=20) as client:
-                response = await client.post(DISCORD_WEBHOOK, files=files_payload)
+            with open(step.screenshot, "rb") as f:
+                files_payload = {
+                    "payload_json": (None, payload_json_str, "application/json"),
+                    "file": (attach_filename, f, "image/png"),
+                }
+                print(f"🔹 [DISCORD DEBUG] Sending multipart POST (with screenshot) to Discord...")
+                return requests.post(DISCORD_WEBHOOK, files=files_payload, timeout=20)
         else:
-            # JSON-only post (no attachment)
             print(f"🔹 [DISCORD DEBUG] Sending JSON POST (no screenshot) to Discord...")
-            async with httpx.AsyncClient(timeout=20) as client:
-                response = await client.post(
-                    DISCORD_WEBHOOK,
-                    content=payload_json_str,
-                    headers={"Content-Type": "application/json"},
-                )
+            return requests.post(
+                DISCORD_WEBHOOK,
+                data=payload_json_str,
+                headers={"Content-Type": "application/json"},
+                timeout=20,
+            )
+
+    try:
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(None, _do_post)
 
         print(f"🔹 [DISCORD DEBUG] HTTP response status : {response.status_code}")
         print(f"🔹 [DISCORD DEBUG] HTTP response body   : {response.text[:500]}")
@@ -257,16 +258,12 @@ async def send_discord_alert(step: StepResult, candidate_email: str = ""):
         else:
             print(f"  ⚠️  [DISCORD DEBUG] Unexpected status {response.status_code}: {response.text[:300]}")
 
-    except httpx.TimeoutException as e:
-        print(f"  ❌ [DISCORD DEBUG] Request timed out: {e}")
-    except httpx.ConnectError as e:
+    except requests.Timeout:
+        print(f"  ❌ [DISCORD DEBUG] Request timed out after 20s")
+    except requests.ConnectionError as e:
         print(f"  ❌ [DISCORD DEBUG] Connection error (network/DNS issue?): {e}")
     except Exception as e:
         print(f"  ❌ [DISCORD DEBUG] Unexpected error during Discord send: {type(e).__name__}: {e}")
-    finally:
-        if screenshot_file:
-            screenshot_file.close()
-            print(f"🔹 [DISCORD DEBUG] Screenshot file handle closed")
 
     print(f"{'─'*50}\n")
 
