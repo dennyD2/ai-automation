@@ -50,12 +50,15 @@ class PrescreeningPage:
         print("✅ Submitted criminal offense section")
 
     async def select_job_fit(self):
-        print("🔹 Waiting for Stability dropdown")
+        print("🔹 Waiting for Stability option")
         
-        await self.page.locator("select").nth(0).wait_for(timeout=15000)
-        await self.page.locator("select").nth(0).select_option(
-            label="Stability"
-        )
+        await self.page.get_by_text(
+            "Stability"
+        ).wait_for(timeout=15000)
+        
+        await self.page.get_by_text(
+            "Stability"
+        ).click()
         
         print("✅ Selected Stability")
         
