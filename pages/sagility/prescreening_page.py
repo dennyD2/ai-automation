@@ -41,12 +41,6 @@ class PrescreeningPage:
         
         print("✅ Criminal offense question answered")
 
-        container = question.locator("xpath=..")
-
-        await container.get_by_text("No").click()
-
-        print("✅ Criminal offense question answered")
-
     async def submit_knockout_questions(self):
         await self.page.get_by_role(
             "button",
