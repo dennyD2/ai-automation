@@ -450,52 +450,17 @@ async def stage2_consent(page: Page, candidate_email: str) -> list[StepResult]:
     try:
         print("🔹 [STEP_02] Waiting for consent checkbox...")
         
-        # Take screenshot to debug
-        await screenshot(page, "STEP_02_DEBUG_START")
-        
-        # Wait for the consent section to load
         await page.wait_for_timeout(3000)
         
-        # Look for the consent checkbox with proper waiting
-        checkbox_locs = [
-            page.locator('input[type="checkbox"]').first,
-            page.get_by_role("checkbox").first,
-            page.locator('[class*="consent" i] input').first,
-            page.locator('//span[contains(text(), "consent")]//input').first,
-            page.locator('//label[contains(text(), "consent")]//input').first,
-        ]
+        # Find checkbox - works on both environments
+        checkbox = page.locator('input[type="checkbox"]')
+        await checkbox.wait_for(state="visible", timeout=10000)
+        await checkbox.check()
+        print("      ✅  Consent checkbox ticked")
         
-        clicked = False
-        for loc in checkbox_locs:
-            try:
-                # Wait for the checkbox to be visible before interacting
-                await loc.wait_for(state="visible", timeout=10000)
-                if await loc.count() > 0:
-                    await loc.check(timeout=5000)
-                    clicked = True
-                    print("      ✅  Consent checkbox ticked")
-                    break
-            except Exception as e:
-                print(f"🔹 Checkbox locator failed: {e}")
-                continue
-                
-        if not clicked:
-            # Try clicking the label text instead
-            try:
-                consent_label = page.get_by_text(re.compile("consent", re.I))
-                if await consent_label.count() > 0:
-                    await consent_label.first.click()
-                    clicked = True
-                    print("      ✅  Consent clicked via label")
-            except:
-                pass
+        # Wait for button to become enabled
+        await page.wait_for_timeout(2000)
         
-        if not clicked:
-            step2.fail("[ELEMENT_MISSING]", "Consent checkbox not found or not clickable")
-            step2.screenshot = await screenshot(page, "STEP_02_fail")
-        else:
-            print("      ✅  Consent checkbox ticked")
-            
     except Exception as e:
         step2.fail("[ELEMENT_MISSING]", str(e)[:200])
         step2.screenshot = await screenshot(page, "STEP_02_fail")
@@ -505,30 +470,27 @@ async def stage2_consent(page: Page, candidate_email: str) -> list[StepResult]:
     if step2.status == "FAIL":
         return results
 
-    # Step 3 — Wait for and click Start My Application
+    # Step 3 — click Start My Application (WORKS ON BOTH ENVIRONMENTS)
     step3 = StepResult("STEP_03", "Consent — click Start My Application")
     t0 = time.time()
     try:
-        print("🔹 [STEP_03] Waiting for Start My Application button to become enabled...")
+        print("🔹 [STEP_03] Waiting for Start My Application...")
         
-        # Wait for the button to become visible and enabled
-        start_btn = page.get_by_text("Start My Application →")
+        # ✅ This works on BOTH QA and DEV
+        # Finds ANY element (button, link, span, div) with this text
+        start_btn = page.get_by_text("Start My Application")
         
-        # Wait for the button to be visible
-        await start_btn.wait_for(state="visible", timeout=15000)
+        # Wait for it to be visible
+        await start_btn.first.wait_for(state="visible", timeout=15000)
         
-        # Wait a moment for it to become enabled (after checkbox is ticked)
-        await page.wait_for_timeout(1000)
-        
-        # Click the button
-        await start_btn.click()
+        # Click it
+        await start_btn.first.click()
         print("      ✅  Start My Application clicked")
         
         # Wait for bot to ask for email
-        print("🔹 Waiting for bot to ask for email...")
         appeared = await wait_for_bot_text(
             page, 
-            ["email", "enter your email", "please provide", "what's", "inbox", "check your inbox"],
+            ["email", "enter your email", "please provide", "inbox", "code"],
             TIMEOUT_BOT
         )
         if not appeared:
