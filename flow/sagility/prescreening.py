@@ -26,17 +26,44 @@ async def run_prescreening(page: Page):
         print("✅ First section completed (Student + Termination)")
 
         # ── Second Section: Criminal Question ──────────────────────────────
+        # Wait for criminal question to appear
+        await page.wait_for_timeout(2000)
+        
         await prescreening.answer_criminal_question()
+        
+        # Wait a moment before clicking submit
+        await page.wait_for_timeout(1000)
+        
         await prescreening.submit_criminal_section()
         
         print("✅ Second section completed (Criminal)")
+        
+        # ── CRITICAL: Wait for the criminal section to fully submit ────────
+        # Wait for the criminal question to disappear
+        print("🔹 Waiting for criminal section to submit and transition...")
+        await page.wait_for_timeout(3000)
+        
+        # Wait for the criminal question to no longer be visible
+        try:
+            await page.locator(
+                "text=Have you ever been convicted of a criminal offense?"
+            ).wait_for(state="hidden", timeout=10000)
+            print("✅ Criminal question is no longer visible")
+        except:
+            print("⚠️ Criminal question still visible, continuing anyway...")
 
         # ── Third Section: Job Fit Dropdown ────────────────────────────────
+        print("🔹 Waiting for Job Fit dropdown to appear...")
+        await page.wait_for_timeout(2000)
+        
         await prescreening.select_job_fit()
         
         print("✅ Third section completed (Job Fit)")
 
         # ── Fourth Section: Job Priority Dropdown ──────────────────────────
+        print("🔹 Waiting for Job Priority dropdown to appear...")
+        await page.wait_for_timeout(2000)
+        
         await prescreening.select_job_priority()
         
         print("✅ Fourth section completed (Job Priority)")
