@@ -36,7 +36,7 @@ ARTIFACTS_DIR = "artifacts"
 
 # Candidate test data (from flow document)
 CANDIDATE_NAME  = "John Thomas"
-CANDIDATE_PHONE = "3479345919"
+CANDIDATE_PHONE = "+13479345919"
 CANDIDATE_PIN   = "90001"
 
 BASE_DIR = os.path.dirname(
