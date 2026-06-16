@@ -1,6 +1,5 @@
 import re
 from playwright.async_api import Page
-from pages.sagility.prescreening_page import PrescreeningPage
 
 async def run_prescreening(page: Page):
     try:
