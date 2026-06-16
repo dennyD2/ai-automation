@@ -28,12 +28,18 @@ class PrescreeningPage:
         print("✅ Terminated question answered")
 
     async def answer_criminal_question(self):
-        question = self.page.get_by_text(
-            re.compile(
-                "convicted.*criminal",
-                re.I
-            )
-        )
+        no_buttons = self.page.get_by_text("No")
+        count = await no_buttons.count()
+        print(f"🔹 Found {count} visible 'No' buttons")
+    
+        for i in range(count):
+            try:
+                btn = no_buttons.nth(i)
+                await btn.click(timeout=2000)
+            except Exception:
+                continue
+        
+        print("✅ Criminal offense question answered")
 
         container = question.locator("xpath=..")
 
