@@ -8,83 +8,103 @@ class PrescreeningPage:
     async def answer_student_question(self):
         section = self.page.locator(
             "text=Are you currently a full-time student?"
-        )
+        ).locator("xpath=..")
 
-        await section.locator(
-            ".."
-        ).get_by_text("No").click()
+        await section.get_by_text(
+            "No",
+            exact=True
+        ).click()
 
         print("✅ Student question answered")
 
     async def answer_termination_question(self):
         section = self.page.locator(
             "text=Have you ever been terminated from a position?"
-        )
+        ).locator("xpath=..")
 
-        await section.locator(
-            ".."
-        ).get_by_text("No").click()
+        await section.get_by_text(
+            "No",
+            exact=True
+        ).click()
 
         print("✅ Terminated question answered")
 
-    async def answer_criminal_question(self):
-        no_buttons = self.page.get_by_text("No")
-        count = await no_buttons.count()
-        print(f"🔹 Found {count} visible 'No' buttons")
-    
-        for i in range(count):
-            try:
-                btn = no_buttons.nth(i)
-                await btn.click(timeout=2000)
-            except Exception:
-                continue
-        
-        print("✅ Criminal offense question answered")
+    async def submit_first_section(self):
+        section = self.page.locator(
+            "text=Have you ever been terminated from a position?"
+        ).locator("xpath=..").locator("xpath=..")
 
-    async def submit_knockout_questions(self):
-        await self.page.get_by_role(
+        await section.get_by_role(
             "button",
             name="Submit"
-        ).nth(1).click()
+        ).click()
 
-        print("✅ Submitted criminal offense section")
+        print("✅ Submitted first section")
+
+    async def answer_criminal_question(self):
+        section = self.page.locator(
+            "text=Have you ever been convicted of a criminal offense?"
+        ).locator("xpath=..")
+
+        await section.get_by_text(
+            "No",
+            exact=True
+        ).click()
+
+        print("✅ Criminal offense question answered")
+
+    async def submit_criminal_section(self):
+        section = self.page.locator(
+            "text=Have you ever been convicted of a criminal offense?"
+        ).locator("xpath=..").locator("xpath=..")
+
+        await section.get_by_role(
+            "button",
+            name="Submit"
+        ).click()
+
+        print("✅ Submitted criminal section")
 
     async def select_job_fit(self):
-        print("🔹 Waiting for Stability option")
-        
-        await self.page.get_by_text(
-            "Stability"
-        ).wait_for(timeout=15000)
-        
-        await self.page.get_by_text(
-            "Stability"
-        ).click()
-        
-        print("✅ Selected Stability")
-        
-        await self.page.get_by_role(
+        section = self.page.locator(
+            "text=What would make this job a good fit for you?"
+        ).locator("xpath=..")
+
+        dropdown = section.locator("select")
+
+        await dropdown.wait_for()
+
+        await dropdown.select_option(
+            label="Culture & team fit"
+        )
+
+        print("✅ Selected Culture & team fit")
+
+        await section.get_by_role(
             "button",
             name="Continue"
         ).click()
-        
+
         print("✅ Continued first dropdown")
 
     async def select_job_priority(self):
-        print("🔹 Waiting for Work-life balance option")
-        
-        await self.page.get_by_text(
-            "Work-life balance"
-        ).wait_for(timeout=15000)
-        
-        await self.page.get_by_text(
-            "Work-life balance"
-        ).click()
-        
+        section = self.page.locator(
+            "text=What matters most to you when choosing a job?"
+        ).locator("xpath=..")
+
+        dropdown = section.locator("select")
+
+        await dropdown.wait_for()
+
+        await dropdown.select_option(
+            label="Work-life balance"
+        )
+
         print("✅ Selected Work-life balance")
-        
-        await self.page.get_by_role(
+
+        await section.get_by_role(
             "button",
             name="Continue"
         ).click()
-        
+
         print("✅ Continued second dropdown")
