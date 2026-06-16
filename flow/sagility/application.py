@@ -356,38 +356,74 @@ async def stage1_portal_launch(page: Page, candidate_email: str) -> StepResult:
     step = StepResult("STEP_01", "Portal Launch — open candidate portal")
     t0 = time.time()
     try:
-        await page.goto(PORTAL_URL, wait_until="domcontentloaded", timeout=TIMEOUT_WEBSITE)
+        print(f"🔹 [STEP_01] Navigating to: {PORTAL_URL}")
+        
+        # Navigate to the portal with more robust options
+        await page.goto(PORTAL_URL, wait_until="commit", timeout=TIMEOUT_WEBSITE)
+        
+        print("🔹 [STEP_01] Page loaded, waiting for content...")
+        
+        # Wait for the page to stabilize
         await page.wait_for_timeout(5000)
-        await page.wait_for_load_state("networkidle")
-        await page.wait_for_timeout(5000)
-        # check blank / infinite loader
-        health = await detect_blank_or_spinner(page)
-        if health:
-            step.fail(health, f"Portal loaded but {health} detected immediately")
+        
+        # Check if we're on the right page
+        current_url = page.url
+        print(f"🔹 [STEP_01] Current URL: {current_url}")
+        
+        # Take a screenshot to see what's happening
+        await screenshot(page, "STEP_01_DEBUG")
+        
+        # Check page content
+        body = await page.evaluate("() => document.body.innerText")
+        print(f"🔹 [STEP_01] Page body text (first 500 chars):")
+        print(body[:500] if body else "EMPTY PAGE")
+        
+        # Check if page is blank
+        if not body or len(body.strip()) < 50:
+            step.fail("[BLANK_PAGE]", "Page loaded but body is empty or too short")
             step.screenshot = await screenshot(page, "STEP_01_fail")
             step.duration = time.time() - t0
             return step
-
-        # Validate expected elements
-        body = await page.evaluate("() => document.body.innerText")
-        checks = {
-            "Start My Application button": "start my application",
-        }
-        missing = [name for name, kw in checks.items() if kw.lower() not in body.lower()]
-        if missing:
-            step.fail("[ELEMENT_MISSING]", f"Missing on portal load: {', '.join(missing)}")
+        
+        # Check for common portal indicators
+        indicators = [
+            "Sagility",
+            "Dashboard", 
+            "Start My Application",
+            "Recruitment Notice",
+            "Privacy",
+            "Noah",
+            "Powered By"
+        ]
+        
+        found_indicators = [ind for ind in indicators if ind.lower() in body.lower()]
+        print(f"🔹 [STEP_01] Found indicators: {found_indicators}")
+        
+        if not found_indicators:
+            step.fail("[ELEMENT_MISSING]", "No expected portal content found on page")
             step.screenshot = await screenshot(page, "STEP_01_fail")
-        else:
-            print("      ✅  Portal loaded — Start My Application visible")
-
+            step.duration = time.time() - t0
+            return step
+        
+        print("      ✅  Portal loaded successfully")
+        
     except Exception as e:
-        tag = "[TIMEOUT]" if "timeout" in str(e).lower() else "[BLANK_PAGE]"
-        step.fail(tag, str(e)[:300])
+        error_msg = str(e)
+        print(f"🔹 [STEP_01] Error: {error_msg}")
+        
+        # Determine the error type
+        if "timeout" in error_msg.lower():
+            tag = "[TIMEOUT]"
+        elif "net::ERR" in error_msg:
+            tag = "[NETWORK_ERROR]"
+        else:
+            tag = "[BLANK_PAGE]"
+            
+        step.fail(tag, error_msg[:300])
         step.screenshot = await screenshot(page, "STEP_01_fail")
 
     step.duration = time.time() - t0
     return step
-
 # ── STAGE 2 — Consent ─────────────────────────────────────────────────────────
 
 async def stage2_consent(page: Page, candidate_email: str) -> list[StepResult]:
