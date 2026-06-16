@@ -81,13 +81,6 @@ class PrescreeningPage:
         ).click()
         
         print("✅ Selected Work-life balance")
-    
-    await self.page.get_by_role(
-        "button",
-        name="Continue"
-    ).click()
-    
-    print("✅ Continued second dropdown")
         
         await self.page.get_by_role(
             "button",
