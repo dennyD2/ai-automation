@@ -1201,20 +1201,34 @@ async def run_monitor():
     except Exception as e:
         # ── GLOBAL FAILURE HANDLER ──────────────────────────────────────────────────
         print(f"\n❌ GLOBAL FAILURE: {e}")
-
+    
         failure_screenshot = ""
-
+    
         # Take screenshot on failure
         try:
-            if portal_page:
+            if (
+                portal_page and
+                not portal_page.is_closed()
+            ):
                 failure_screenshot = await screenshot(
                     portal_page,
                     "GLOBAL_FAILURE"
                 )
-                print(f"✅ Failure screenshot saved: {failure_screenshot}")
-        except Exception as ss_error:
-            print(f"❌ Screenshot failed: {ss_error}")
-
+                print(
+                    f"✅ Failure screenshot saved: "
+                    f"{failure_screenshot}"
+                )
+            else:
+                print(
+                    "❌ Cannot capture screenshot: "
+                    "page already closed"
+                )
+        except Exception as screenshot_error:
+            print(
+                f"❌ Screenshot failed: "
+                f"{screenshot_error}"
+            )
+    
         # Create StepResult for global failure
         global_failure = StepResult(
             "GLOBAL_FAILURE",
@@ -1224,7 +1238,7 @@ async def run_monitor():
         global_failure.tag = "[GLOBAL_FAILURE]"
         global_failure.reason = str(e)[:500]
         global_failure.screenshot = failure_screenshot
-
+    
         # Send Discord alert on failure
         try:
             if DISCORD_WEBHOOK:
@@ -1237,7 +1251,7 @@ async def run_monitor():
                 print("⚠️ DISCORD_WEBHOOK not set — skipping Discord alert")
         except Exception as discord_error:
             print(f"❌ Discord failed: {discord_error}")
-
+    
         # Re-raise to fail the workflow
         raise
 
