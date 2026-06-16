@@ -76,25 +76,25 @@ jobs:
         run: |
           PORTAL_URL=$(python <<EOF
           from configs.config_sagility import URLS
-          
-          env = "${{ github.event.inputs.environment }}"
-          role = "${{ github.event.inputs.role_type }}"
-          
+          import os
+      
+          env = os.getenv("ENVIRONMENT", "QA")
+          role = os.getenv("ROLE_TYPE", "voice")
+      
           if env == "QA":
               print(URLS["QA"][role])
           else:
               print(URLS[env])
-          
+      
           EOF
           )
           echo "PORTAL_URL=$PORTAL_URL" >> $GITHUB_ENV
-
-      - name: Run Automation
-        env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-          HEADLESS: ${{ github.event.inputs.headless }}
-        run: |
-          python -m flow.${{ github.event.inputs.company || 'sagility' }}.application
+            - name: Run Automation
+              env:
+                DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+                HEADLESS: ${{ github.event.inputs.headless }}
+              run: |
+                python -m flow.${{ github.event.inputs.company || 'sagility' }}.application
 
       - name: Upload Artifacts
         if: always()
