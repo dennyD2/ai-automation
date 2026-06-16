@@ -75,62 +75,60 @@ class PrescreeningPage:
 
     async def select_job_fit(self):
         """Select 'Culture & team fit' from dropdown"""
-        # Wait for the question to appear
         await self.page.wait_for_timeout(2000)
         
         # Find the section containing the question
         section = self.page.locator(
             "text=What would make this job a good fit for you?"
         ).locator("xpath=..")
-    
-        # Find and select from dropdown within the section
+        
+        # Find the dropdown within the section
         dropdown = section.locator("select")
         await dropdown.wait_for()
         await dropdown.select_option(
             label="Culture & team fit"
         )
         print("✅ Selected Culture & team fit")
+        
+        # Wait for any animations
+        await self.page.wait_for_timeout(1000)
     
-        # Click Continue button - try multiple approaches
-        try:
-            # Approach 1: Find Continue button within the section
-            await section.get_by_role(
-                "button",
-                name="Continue"
-            ).click()
-        except Exception:
-            # Approach 2: Find Continue button on the page (not scoped)
-            await self.page.get_by_role(
-                "button",
-                name="Continue"
-            ).click()
+        # Click Continue button within the SAME section
+        continue_btn = section.get_by_role(
+            "button",
+            name="Continue"
+        )
         
+        await continue_btn.wait_for(state="visible", timeout=15000)
+        await continue_btn.click()
         print("✅ Continued first dropdown")
-        
+    
     async def select_job_priority(self):
         """Select 'Brand name' from dropdown"""
         await self.page.wait_for_timeout(2000)
         
-        # Find the dropdown using a more flexible approach
-        # Look for the select element near the question text
-        dropdown = self.page.locator(
+        # Find the section containing the question
+        section = self.page.locator(
             "text=What matters most to you when choosing a job?"
-        ).locator("xpath=..").locator("select")
+        ).locator("xpath=..")
         
+        # Find the dropdown within the section
+        dropdown = section.locator("select")
         await dropdown.wait_for()
         await dropdown.select_option(
             label="Brand name"
         )
         print("✅ Selected Brand name")
+        
+        # Wait for any animations
+        await self.page.wait_for_timeout(1000)
     
-        # Click Continue button - use page-level selector
-        # The Continue button is outside the question section
-        continue_btn = self.page.get_by_role(
+        # Click Continue button within the SAME section
+        continue_btn = section.get_by_role(
             "button",
             name="Continue"
-        ).first
+        )
         
-        # Wait for the button to be visible and clickable
-        await continue_btn.wait_for(state="visible", timeout=15000)
+        await continue_btn.wait_for(state="visible", enabled=True, timeout=15000)
         await continue_btn.click()
         print("✅ Continued second dropdown")
