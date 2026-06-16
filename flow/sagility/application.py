@@ -229,8 +229,25 @@ async def send_discord_alert(step: StepResult, candidate_email: str = ""):
             )
     
     except Exception as e:
-    
-        print(f"⚠️ Discord alert failed: {e}")
+        print(f"❌ PRE-SCREENING FAILURE: {e}")
+        
+        failure_screenshot = await screenshot(
+            page,
+            "PRESCREENING_FAILURE"
+        )
+        
+        try:
+            await send_discord_alert(
+                title="❌ Sagility Automation Failed",
+                message=str(e),
+                screenshot=failure_screenshot
+            )
+        except Exception as discord_error:
+            print(
+                f"❌ Discord notification failed: {discord_error}"
+            )
+        
+        raise
     
     finally:
     
