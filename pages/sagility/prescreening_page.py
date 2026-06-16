@@ -1,4 +1,5 @@
 from playwright.async_api import Page
+from services.screenshot_service import screenshot
 
 class PrescreeningPage:
     def __init__(self, page: Page):
