@@ -104,26 +104,39 @@ class PrescreeningPage:
         """Select 'Work-life balance' from dropdown"""
         print("🔹 [select_job_priority] Waiting for dropdown...")
         
-        await self.page.wait_for_timeout(2000)
+        await self.page.wait_for_timeout(3000)
         
-        # The select element itself has the ID
-        dropdown = self.page.locator(
-            "//select[@id='pre-screening-next-role-motivation']"
-        )
+        # Take screenshot for debugging
+        await screenshot(self.page, "BEFORE_JOB_PRIORITY")
         
-        await dropdown.wait_for(state="visible", timeout=15000)
-        await dropdown.select_option(
-            label="Work-life balance"
-        )
-        print("✅ Selected Work-life balance")
+        # Debug: Print page content
+        body = await self.page.evaluate("() => document.body.innerText")
+        print(f"🔹 [select_job_priority] Page content (first 500 chars):")
+        print(body[:500] if body else "EMPTY")
+        
+        try:
+            # Try native select first (fallback)
+            dropdown = self.page.locator("select.billi-inline-form-input")
+            await dropdown.wait_for(state="visible", timeout=5000)
+            await dropdown.select_option(label="Work-life balance")
+            print("✅ Selected Work-life balance (native select)")
+        except:
+            # Custom dropdown - click on "Select an option" text
+            print("🔹 Native select not found, trying custom dropdown...")
+            
+            # Click on the dropdown to open it
+            dropdown_trigger = self.page.get_by_text("Select an option")
+            await dropdown_trigger.first.click()
+            await self.page.wait_for_timeout(1000)
+            
+            # Click on the option
+            option = self.page.get_by_text("Work-life balance")
+            await option.click()
+            print("✅ Selected Work-life balance (custom dropdown)")
         
         await self.page.wait_for_timeout(1000)
-
-        # Find the Continue button
-        continue_btn = self.page.locator(
-            "//button[contains(text(), 'Continue')]"
-        ).last
-        
-        await continue_btn.wait_for(state="visible", timeout=15000)
-        await continue_btn.click()
+    
+        # Click Continue button
+        continue_btn = self.page.get_by_text("Continue")
+        await continue_btn.last.click()
         print("✅ Continued second dropdown")
