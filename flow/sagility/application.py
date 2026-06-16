@@ -25,6 +25,21 @@ from playwright.async_api import async_playwright, Page
 # ── Configuration ─────────────────────────────────────────────────────────────
 
 PORTAL_URL = os.getenv("PORTAL_URL")
+if not PORTAL_URL:
+    try:
+        from configs.config_sagility import URLS
+        ENVIRONMENT = os.getenv("ENVIRONMENT", "QA")
+        ROLE_TYPE = os.getenv("ROLE_TYPE", "voice")
+        
+        if ENVIRONMENT == "QA":
+            PORTAL_URL = URLS["QA"][ROLE_TYPE]
+        else:
+            PORTAL_URL = URLS[ENVIRONMENT]
+        print(f"🔹 Loaded PORTAL_URL from config: {PORTAL_URL}")
+    except Exception as e:
+        print(f"⚠️ Could not load PORTAL_URL from config: {e}")
+        PORTAL_URL = "https://hire-dev.bling-ai.com/sagility"  # Default fallback
+
 HEADLESS = (
     os.getenv(
         "HEADLESS",
