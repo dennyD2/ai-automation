@@ -32,6 +32,8 @@ HEADLESS = (
     ).lower() == "true"
 )
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK", "")
+ENVIRONMENT  = os.getenv("ENVIRONMENT", "QA")
+ROLE_TYPE    = os.getenv("ROLE_TYPE", "voice")
 ARTIFACTS_DIR = "artifacts"
 
 # Candidate test data (from flow document)
@@ -162,9 +164,9 @@ async def send_discord_alert(step: StepResult, candidate_email: str = ""):
     ts_human = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
 
     fields = [
-        {"name": "Step", "value": f"`{step.step_id}` — {step.name}", "inline": False},
-        {"name": "Status", "value": step.status, "inline": True},
-        {"name": "Timestamp", "value": ts_human, "inline": True},
+        {"name": "Step",        "value": f"`{step.step_id}` — {step.name}", "inline": False},
+        {"name": "Status",      "value": step.status,  "inline": True},
+        {"name": "Timestamp",   "value": ts_human,     "inline": True},
     ]
 
     if step.tag:
@@ -173,6 +175,13 @@ async def send_discord_alert(step: StepResult, candidate_email: str = ""):
         fields.append({"name": "Reason", "value": step.reason[:300] or "—", "inline": False})
     if candidate_email:
         fields.append({"name": "Candidate email", "value": candidate_email, "inline": False})
+
+    # Environment details
+    fields.append({"name": "Environment", "value": ENVIRONMENT, "inline": True})
+    fields.append({"name": "Role Type",   "value": ROLE_TYPE,   "inline": True})
+
+    if PORTAL_URL:
+        fields.append({"name": "Portal URL", "value": PORTAL_URL, "inline": False})
     if RUN_URL:
         fields.append({"name": "CI Run", "value": RUN_URL, "inline": False})
     if step.screenshot:
@@ -207,7 +216,7 @@ async def send_discord_alert(step: StepResult, candidate_email: str = ""):
         ),
         "color": 5763719 if is_success else _discord_color(step.tag),
         "fields": fields,
-        "footer": {"text": f"Portal: {PORTAL_URL}"},
+        "footer": {"text": f"Sagility Monitor • {ENVIRONMENT} • {ROLE_TYPE}"},
     }
 
     # BUG FIX: embed["image"] must be set BEFORE json.dumps(payload)
