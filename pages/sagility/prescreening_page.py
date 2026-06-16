@@ -78,27 +78,35 @@ class PrescreeningPage:
         # Wait for the question to appear
         await self.page.wait_for_timeout(2000)
         
+        # Find the section containing the question
         section = self.page.locator(
             "text=What would make this job a good fit for you?"
         ).locator("xpath=..")
-
+    
+        # Find and select from dropdown within the section
         dropdown = section.locator("select")
-
         await dropdown.wait_for()
-
         await dropdown.select_option(
             label="Culture & team fit"
         )
-
         print("✅ Selected Culture & team fit")
-
-        await section.get_by_role(
-            "button",
-            name="Continue"
-        ).click()
-
+    
+        # Click Continue button - try multiple approaches
+        try:
+            # Approach 1: Find Continue button within the section
+            await section.get_by_role(
+                "button",
+                name="Continue"
+            ).click()
+        except Exception:
+            # Approach 2: Find Continue button on the page (not scoped)
+            await self.page.get_by_role(
+                "button",
+                name="Continue"
+            ).click()
+        
         print("✅ Continued first dropdown")
-
+        
     async def select_job_priority(self):
         """Select 'Brand name' from dropdown"""
         # Wait for the question to appear
