@@ -19,6 +19,7 @@ from flow.sagility.assessment import run_assessment
 
 import urllib.request
 import requests
+import httpx  # async-safe HTTP client
 
 from playwright.async_api import async_playwright, Page
 
@@ -132,41 +133,68 @@ def _discord_color(tag: str) -> int:
     return {"critical": 15158332, "high": 16744272, "medium": 16776960}.get(severity, 15158332)
 
 async def send_discord_alert(step: StepResult, candidate_email: str = ""):
+    # ── DEBUG: Webhook validation ──────────────────────────────────────────────
+    print(f"\n{'─'*50}")
+    print(f"🔔 [DISCORD DEBUG] send_discord_alert called")
+    print(f"   step_id     : {step.step_id}")
+    print(f"   step.name   : {step.name}")
+    print(f"   step.status : {step.status}")
+    print(f"   step.tag    : {step.tag}")
+    print(f"   step.reason : {step.reason}")
+    print(f"   step.screenshot : {step.screenshot}")
+    print(f"   candidate_email : {candidate_email}")
+
     if not DISCORD_WEBHOOK:
-        print(f"  ⚠️  DISCORD_WEBHOOK not set — skipping alert for {step.step_id}")
+        print(f"  ❌ [DISCORD DEBUG] DISCORD_WEBHOOK env var is NOT SET — cannot send alert for {step.step_id}")
+        print(f"{'─'*50}\n")
         return
 
-    # Determine if it's a success or failure
+    # Mask webhook for safe logging (show first 60 chars only)
+    masked_hook = DISCORD_WEBHOOK[:60] + "..." if len(DISCORD_WEBHOOK) > 60 else DISCORD_WEBHOOK
+    print(f"   webhook     : {masked_hook}")
+
+    # Basic format sanity check
+    if not DISCORD_WEBHOOK.startswith("https://discord.com/api/webhooks/"):
+        print(f"  ⚠️  [DISCORD DEBUG] Webhook URL looks malformed! Expected 'https://discord.com/api/webhooks/...'")
+
+    # ── Build embed ────────────────────────────────────────────────────────────
     is_success = step.status == "PASS" or step.step_id == "SUCCESS"
-    
-    # Get the label for the tag
     label = SEVERITY.get(step.tag, (step.tag, "high"))[0] if step.tag else "Unknown"
-    
     ts_human = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
 
-    # Build fields
     fields = [
         {"name": "Step", "value": f"`{step.step_id}` — {step.name}", "inline": False},
         {"name": "Status", "value": step.status, "inline": True},
         {"name": "Timestamp", "value": ts_human, "inline": True},
     ]
-    
+
     if step.tag:
         fields.append({"name": "Failure type", "value": label or step.tag, "inline": True})
-    
     if step.reason:
         fields.append({"name": "Reason", "value": step.reason[:300] or "—", "inline": False})
-    
     if candidate_email:
         fields.append({"name": "Candidate email", "value": candidate_email, "inline": False})
-    
     if RUN_URL:
         fields.append({"name": "CI Run", "value": RUN_URL, "inline": False})
-    
     if step.screenshot:
         fields.append({"name": "Screenshot", "value": f"`{step.screenshot}`", "inline": False})
 
-    # Build embed
+    # ── Screenshot attachment (must be set BEFORE serializing payload_json) ──
+    screenshot_file = None
+    attach_filename = None
+
+    print(f"🔹 [DISCORD DEBUG] step.screenshot = {step.screenshot!r}")
+
+    if step.screenshot:
+        if os.path.exists(step.screenshot):
+            attach_filename = os.path.basename(step.screenshot)
+            file_size = os.path.getsize(step.screenshot)
+            print(f"🔹 [DISCORD DEBUG] Screenshot file found: {step.screenshot} ({file_size} bytes)")
+        else:
+            print(f"  ⚠️  [DISCORD DEBUG] Screenshot path set but FILE NOT FOUND: {step.screenshot}")
+    else:
+        print(f"  ℹ️  [DISCORD DEBUG] No screenshot to attach")
+
     embed = {
         "title": (
             "✅ Sagility Monitor — SUCCESS"
@@ -182,40 +210,65 @@ async def send_discord_alert(step: StepResult, candidate_email: str = ""):
         "fields": fields,
         "footer": {"text": f"Portal: {PORTAL_URL}"},
     }
- 
+
+    # BUG FIX: embed["image"] must be set BEFORE json.dumps(payload)
+    if attach_filename:
+        embed["image"] = {"url": f"attachment://{attach_filename}"}
+        print(f"🔹 [DISCORD DEBUG] embed['image'] set to attachment://{attach_filename}")
+
     payload = {"embeds": [embed]}
-    files = {}
-    
-    print(f"🔹 step.screenshot = {step.screenshot}")
-    
-    # Attach screenshot if it exists
-    if step.screenshot and os.path.exists(step.screenshot):
-        print(f"🔹 Attaching screenshot: {step.screenshot}")
-        files["file"] = open(step.screenshot, "rb")
-        embed["image"] = {
-            "url": "attachment://" + os.path.basename(step.screenshot)
-        }
-        print("✅ Screenshot attached to Discord payload")
-    
+    payload_json_str = json.dumps(payload)
+    print(f"🔹 [DISCORD DEBUG] payload_json length = {len(payload_json_str)} chars")
+
+    # ── Send via httpx (async-safe, avoids blocking the event loop) ──────────
     try:
-        response = requests.post(
-            DISCORD_WEBHOOK,
-            data={"payload_json": json.dumps(payload)},
-            files=files if files else None,
-            timeout=15
-        )
-    
-        if response.status_code in [200, 204]:
-            print(f"📣 Discord alert sent for {step.step_id}")
+        if attach_filename:
+            screenshot_file = open(step.screenshot, "rb")
+            # multipart/form-data with file attachment
+            files_payload = {
+                "payload_json": (None, payload_json_str, "application/json"),
+                "file": (attach_filename, screenshot_file, "image/png"),
+            }
+            print(f"🔹 [DISCORD DEBUG] Sending multipart POST (with screenshot) to Discord...")
+            async with httpx.AsyncClient(timeout=20) as client:
+                response = await client.post(DISCORD_WEBHOOK, files=files_payload)
         else:
-            print(f"⚠️ Discord alert failed: {response.status_code} {response.text}")
-    
+            # JSON-only post (no attachment)
+            print(f"🔹 [DISCORD DEBUG] Sending JSON POST (no screenshot) to Discord...")
+            async with httpx.AsyncClient(timeout=20) as client:
+                response = await client.post(
+                    DISCORD_WEBHOOK,
+                    content=payload_json_str,
+                    headers={"Content-Type": "application/json"},
+                )
+
+        print(f"🔹 [DISCORD DEBUG] HTTP response status : {response.status_code}")
+        print(f"🔹 [DISCORD DEBUG] HTTP response body   : {response.text[:500]}")
+
+        if response.status_code in (200, 204):
+            print(f"✅ [DISCORD DEBUG] Alert delivered successfully for {step.step_id}")
+        elif response.status_code == 429:
+            retry_after = response.json().get("retry_after", "?")
+            print(f"  ⚠️  [DISCORD DEBUG] Rate-limited by Discord! retry_after={retry_after}s")
+        elif response.status_code == 401:
+            print(f"  ❌ [DISCORD DEBUG] 401 Unauthorized — webhook token is invalid or revoked")
+        elif response.status_code == 404:
+            print(f"  ❌ [DISCORD DEBUG] 404 Not Found — webhook URL is deleted or wrong")
+        else:
+            print(f"  ⚠️  [DISCORD DEBUG] Unexpected status {response.status_code}: {response.text[:300]}")
+
+    except httpx.TimeoutException as e:
+        print(f"  ❌ [DISCORD DEBUG] Request timed out: {e}")
+    except httpx.ConnectError as e:
+        print(f"  ❌ [DISCORD DEBUG] Connection error (network/DNS issue?): {e}")
     except Exception as e:
-        print(f"❌ Discord send error: {e}")
-    
+        print(f"  ❌ [DISCORD DEBUG] Unexpected error during Discord send: {type(e).__name__}: {e}")
     finally:
-        if files:
-            files["file"].close()
+        if screenshot_file:
+            screenshot_file.close()
+            print(f"🔹 [DISCORD DEBUG] Screenshot file handle closed")
+
+    print(f"{'─'*50}\n")
 
 # ── HTML report ───────────────────────────────────────────────────────────────
 
@@ -943,6 +996,18 @@ async def run_monitor():
         candidate_email = ts_email()
         print(f"  📧  Candidate email : {candidate_email}")
         print(f"  🌐  Portal URL      : {PORTAL_URL}")
+
+        # ── Discord startup diagnostic ──────────────────────────────────────
+        print(f"\n  🔔  Discord webhook configured : {'YES' if DISCORD_WEBHOOK else 'NO ❌'}")
+        if DISCORD_WEBHOOK:
+            masked = DISCORD_WEBHOOK[:60] + "..." if len(DISCORD_WEBHOOK) > 60 else DISCORD_WEBHOOK
+            print(f"  🔔  Webhook (masked)           : {masked}")
+            if not DISCORD_WEBHOOK.startswith("https://discord.com/api/webhooks/"):
+                print(f"  ⚠️  WARNING: Webhook URL format looks wrong!")
+        else:
+            print(f"  ❌  Set DISCORD_WEBHOOK env var to enable Discord alerts")
+        # ───────────────────────────────────────────────────────────────────
+
         print(f"{'='*60}\n")
 
         async with async_playwright() as pw:
