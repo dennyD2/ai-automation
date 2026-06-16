@@ -1,124 +1,76 @@
+import re
 from playwright.async_api import Page
+from pages.sagility.prescreening_page import PrescreeningPage
 
-class PrescreeningPage:
-    def __init__(self, page: Page):
-        self.page = page
+async def run_prescreening(page: Page):
+    try:
+        print("\n===== PRE-SCREENING STAGE =====")
 
-    async def answer_student_question(self):
-        """Answer 'Are you currently a full-time student?' -> No"""
-        section = self.page.locator(
-            "text=Are you currently a full-time student?"
-        ).locator("xpath=..")
+        prescreening = PrescreeningPage(page)
 
-        await section.get_by_text(
-            "No",
-            exact=True
-        ).click()
+        # Wait for pre-screening content to load
+        await page.get_by_text(
+            re.compile(
+                "before we move forward",
+                re.I
+            )
+        ).wait_for(timeout=15000)
 
-        print("✅ Student question answered (No)")
+        print("✅ Pre-screening content detected")
 
-    async def answer_termination_question(self):
-        """Answer 'Have you ever been terminated from a position?' -> No"""
-        section = self.page.locator(
-            "text=Have you ever been terminated from a position?"
-        ).locator("xpath=..")
-
-        await section.get_by_text(
-            "No",
-            exact=True
-        ).click()
-
-        print("✅ Terminated question answered (No)")
-
-    async def submit_first_section(self):
-        """Click Submit button after termination question"""
-        await self.page.get_by_role(
-            "button",
-            name="Submit"
-        ).first.click()
-        print("✅ Submitted first section")
-
-    async def answer_criminal_question(self):
-        """Answer 'Have you ever been convicted of a criminal offense?' -> No"""
-        await self.page.wait_for_timeout(2000)
+        # ── First Section: Student + Termination Questions ──────────────────
+        await prescreening.answer_student_question()
+        await prescreening.answer_termination_question()
+        await prescreening.submit_first_section()
         
-        section = self.page.locator(
-            "text=Have you ever been convicted of a criminal offense?"
-        ).locator("xpath=..")
+        print("✅ First section completed (Student + Termination)")
 
-        await section.get_by_text(
-            "No",
-            exact=True
-        ).click()
-
-        print("✅ Criminal offense question answered (No)")
-
-    async def submit_criminal_section(self):
-        """Click Submit button after criminal question"""
-        await self.page.get_by_role(
-            "button",
-            name="Submit"
-        ).first.click()
-        print("✅ Submitted criminal section")
-
-    async def select_job_fit(self):
-        """Select 'Culture & team fit' from dropdown"""
-        print("🔹 [select_job_fit] Starting...")
+        # ── Second Section: Criminal Question ──────────────────────────────
+        await prescreening.answer_criminal_question()
+        await prescreening.submit_criminal_section()
         
-        await self.page.wait_for_timeout(2000)
+        print("✅ Second section completed (Criminal)")
+
+        # ── Third Section: Job Fit Dropdown ────────────────────────────────
+        await prescreening.select_job_fit()
         
-        # Find and select from dropdown
-        dropdown = self.page.locator(
-            "text=What would make this job a good fit for you?"
-        ).locator("xpath=..").locator("select")
+        print("✅ Third section completed (Job Fit)")
+
+        # ── Fourth Section: Job Priority Dropdown ──────────────────────────
+        await prescreening.select_job_priority()
         
-        await dropdown.wait_for()
-        await dropdown.select_option(
-            label="Culture & team fit"
+        print("✅ Fourth section completed (Job Priority)")
+
+        print("🔹 Waiting for transition to next stage")
+
+        await page.get_by_text(
+            re.compile(
+                "taking you to next stage",
+                re.I
+            )
+        ).wait_for(timeout=10000)
+
+        print("✅ Transition detected")
+
+        print("🔹 Waiting for assessment page")
+
+        await page.wait_for_function(
+            """
+            () => {
+                const text = document.body.innerText.toLowerCase();
+                return (
+                    text.includes('start assessment') ||
+                    text.includes('skip assessment') ||
+                    text.includes('internet speed') ||
+                    text.includes('microphone')
+                );
+            }
+            """,
+            timeout=30000
         )
-        print("✅ Selected Culture & team fit")
-        
-        await self.page.wait_for_timeout(1500)
 
-        # Get all Continue buttons
-        continue_buttons = await self.page.get_by_role("button", name="Continue").all()
-        print(f"🔹 [select_job_fit] Found {len(continue_buttons)} Continue buttons")
-        
-        # Click the second one (index 1) - the one for this section
-        if len(continue_buttons) > 1:
-            await continue_buttons[1].click(force=True)
-        else:
-            await continue_buttons[0].click(force=True)
-        
-        print("✅ Continued first dropdown")
+        print("✅ Assessment stage detected")
 
-    async def select_job_priority(self):
-        """Select 'Brand name' from dropdown"""
-        print("🔹 [select_job_priority] Starting...")
-        
-        await self.page.wait_for_timeout(2000)
-        
-        # Find and select from dropdown
-        dropdown = self.page.locator(
-            "text=What matters most to you when choosing a job?"
-        ).locator("xpath=..").locator("select")
-        
-        await dropdown.wait_for()
-        await dropdown.select_option(
-            label="Brand name"
-        )
-        print("✅ Selected Brand name")
-        
-        await self.page.wait_for_timeout(1500)
-
-        # Get all Continue buttons
-        continue_buttons = await self.page.get_by_role("button", name="Continue").all()
-        print(f"🔹 [select_job_priority] Found {len(continue_buttons)} Continue buttons")
-        
-        # Click the third one (index 2) - the one for this section
-        if len(continue_buttons) > 2:
-            await continue_buttons[2].click(force=True)
-        else:
-            await continue_buttons[-1].click(force=True)
-        
-        print("✅ Continued second dropdown")
+    except Exception as e:
+        print(f"❌ PRE-SCREENING ERROR: {e}")
+        raise
