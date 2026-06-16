@@ -66,7 +66,7 @@ class PrescreeningPage:
         
         print("✅ Continued first dropdown")
 
-    async def continue_job_fit(self):
+    async def select_job_priority(self):
         print("🔹 Waiting for Work-life balance dropdown")
         
         await self.page.locator("select").nth(1).wait_for(timeout=15000)
@@ -81,12 +81,4 @@ class PrescreeningPage:
             name="Continue"
         ).click()
         
-        print("✅ Continued second dropdown")
-        
-    async def continue_job_priority(self):
-        await self.page.get_by_role(
-            "button",
-            name="Continue"
-        ).nth(1).click()
-
         print("✅ Continued second dropdown")
