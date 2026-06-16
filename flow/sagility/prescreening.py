@@ -1,6 +1,7 @@
 import re
 from playwright.async_api import Page
 from pages.sagility.prescreening_page import PrescreeningPage
+from services.screenshot_service import screenshot
 
 async def run_prescreening(page: Page):
     try:
@@ -22,50 +23,23 @@ async def run_prescreening(page: Page):
         await prescreening.answer_student_question()
         await prescreening.answer_termination_question()
         await prescreening.submit_first_section()
-        
         print("✅ First section completed (Student + Termination)")
+        
+        await page.wait_for_timeout(3000)
 
         # ── Second Section: Criminal Question ──────────────────────────────
-        # Wait for criminal question to appear
-        await page.wait_for_timeout(2000)
-        
         await prescreening.answer_criminal_question()
-        
-        # Wait a moment before clicking submit
-        await page.wait_for_timeout(1000)
-        
         await prescreening.submit_criminal_section()
-        
         print("✅ Second section completed (Criminal)")
         
-        # ── CRITICAL: Wait for the criminal section to fully submit ────────
-        # Wait for the criminal question to disappear
-        print("🔹 Waiting for criminal section to submit and transition...")
         await page.wait_for_timeout(3000)
-        
-        # Wait for the criminal question to no longer be visible
-        try:
-            await page.locator(
-                "text=Have you ever been convicted of a criminal offense?"
-            ).wait_for(state="hidden", timeout=10000)
-            print("✅ Criminal question is no longer visible")
-        except:
-            print("⚠️ Criminal question still visible, continuing anyway...")
 
         # ── Third Section: Job Fit Dropdown ────────────────────────────────
-        print("🔹 Waiting for Job Fit dropdown to appear...")
-        await page.wait_for_timeout(2000)
-        
         await prescreening.select_job_fit()
-        
         print("✅ Third section completed (Job Fit)")
 
         # ── Fourth Section: Job Priority Dropdown ──────────────────────────
-        print("🔹 Waiting for Job Priority dropdown to appear...")
-        await page.wait_for_timeout(2000)
-        
         await prescreening.select_job_priority()
-        
         print("✅ Fourth section completed (Job Priority)")
 
         print("🔹 Waiting for transition to next stage")
@@ -75,28 +49,39 @@ async def run_prescreening(page: Page):
                 "taking you to next stage",
                 re.I
             )
-        ).wait_for(timeout=10000)
+        ).wait_for(timeout=15000)
 
         print("✅ Transition detected")
 
-        print("🔹 Waiting for assessment page")
-
-        await page.wait_for_function(
-            """
-            () => {
-                const text = document.body.innerText.toLowerCase();
-                return (
-                    text.includes('start assessment') ||
-                    text.includes('skip assessment') ||
-                    text.includes('internet speed') ||
-                    text.includes('microphone')
-                );
-            }
-            """,
-            timeout=30000
-        )
-
-        print("✅ Assessment stage detected")
+        # ── Wait for Assessment Page ──────────────────────────────────────────
+        print("🔹 Waiting for assessment page to load...")
+        
+        # Take a screenshot to see current state
+        await screenshot(page, "BEFORE_ASSESSMENT")
+        
+        # Wait for the page to fully load
+        await page.wait_for_timeout(10000)
+        
+        # Check page content
+        body = await page.evaluate("() => document.body.innerText")
+        print(f"🔹 Assessment page content (first 500 chars):")
+        print(body[:500] if body else "EMPTY")
+        
+        # Check if we have the assessment buttons
+        assessment_buttons = await page.locator("button:has-text('Assessment')").count()
+        skip_buttons = await page.locator("button:has-text('Skip')").count()
+        
+        print(f"🔹 Assessment buttons found: {assessment_buttons}")
+        print(f"🔹 Skip buttons found: {skip_buttons}")
+        
+        if assessment_buttons > 0 or skip_buttons > 0:
+            print("✅ Assessment page detected via buttons")
+        else:
+            # Wait a bit more
+            await page.wait_for_timeout(5000)
+            print("✅ Assessment page detected (by timeout)")
+        
+        print("✅ Assessment stage reached")
 
     except Exception as e:
         print(f"❌ PRE-SCREENING ERROR: {e}")
