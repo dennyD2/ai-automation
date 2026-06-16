@@ -106,37 +106,35 @@ class PrescreeningPage:
         
         await self.page.wait_for_timeout(3000)
         
-        # Take screenshot for debugging
-        await screenshot(self.page, "BEFORE_JOB_PRIORITY")
-        
-        # Debug: Print page content
-        body = await self.page.evaluate("() => document.body.innerText")
-        print(f"🔹 [select_job_priority] Page content (first 500 chars):")
-        print(body[:500] if body else "EMPTY")
-        
         try:
-            # Try native select first (fallback)
-            dropdown = self.page.locator("select.billi-inline-form-input")
-            await dropdown.wait_for(state="visible", timeout=5000)
+            # Find the select element
+            dropdown = self.page.locator("select.billi-inline-form-input").last
+            await dropdown.wait_for(state="visible", timeout=10000)
+            
+            # Click to open dropdown
+            await dropdown.click()
+            await self.page.wait_for_timeout(500)
+            
+            # Select option
             await dropdown.select_option(label="Work-life balance")
-            print("✅ Selected Work-life balance (native select)")
-        except:
-            # Custom dropdown - click on "Select an option" text
-            print("🔹 Native select not found, trying custom dropdown...")
+            print("✅ Selected Work-life balance")
             
-            # Click on the dropdown to open it
-            dropdown_trigger = self.page.get_by_text("Select an option")
-            await dropdown_trigger.first.click()
-            await self.page.wait_for_timeout(1000)
+        except Exception as e:
+            print(f"⚠️ Native select approach failed: {e}")
+            print("🔹 Trying alternative approach...")
             
-            # Click on the option
-            option = self.page.get_by_text("Work-life balance")
-            await option.click()
-            print("✅ Selected Work-life balance (custom dropdown)")
+            # Alternative: Try clicking on the dropdown container
+            dropdown_container = self.page.locator(
+                "//*[contains(text(), 'What matters most to you when choosing a job?')]/following::select[1]"
+            )
+            await dropdown_container.click()
+            await self.page.wait_for_timeout(500)
+            await dropdown_container.select_option(label="Work-life balance")
+            print("✅ Selected Work-life balance (alternative)")
         
         await self.page.wait_for_timeout(1000)
-    
+        
         # Click Continue button
-        continue_btn = self.page.get_by_text("Continue")
-        await continue_btn.last.click()
+        continue_btn = self.page.get_by_text("Continue").last
+        await continue_btn.click()
         print("✅ Continued second dropdown")
