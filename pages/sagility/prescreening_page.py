@@ -1,4 +1,3 @@
-import re
 from playwright.async_api import Page
 
 class PrescreeningPage:
@@ -33,20 +32,14 @@ class PrescreeningPage:
 
     async def submit_first_section(self):
         """Click Submit button after termination question"""
-        section = self.page.locator(
-            "text=Have you ever been terminated from a position?"
-        ).locator("xpath=..").locator("xpath=..")
-
-        await section.get_by_role(
+        await self.page.get_by_role(
             "button",
             name="Submit"
-        ).click()
-
+        ).first.click()
         print("✅ Submitted first section")
 
     async def answer_criminal_question(self):
         """Answer 'Have you ever been convicted of a criminal offense?' -> No"""
-        # Wait for the criminal question to appear
         await self.page.wait_for_timeout(2000)
         
         section = self.page.locator(
@@ -62,19 +55,16 @@ class PrescreeningPage:
 
     async def submit_criminal_section(self):
         """Click Submit button after criminal question"""
-        section = self.page.locator(
-            "text=Have you ever been convicted of a criminal offense?"
-        ).locator("xpath=..").locator("xpath=..")
-
-        await section.get_by_role(
+        await self.page.get_by_role(
             "button",
             name="Submit"
-        ).click()
-
+        ).first.click()
         print("✅ Submitted criminal section")
 
     async def select_job_fit(self):
         """Select 'Culture & team fit' from dropdown"""
+        print("🔹 [select_job_fit] Starting...")
+        
         await self.page.wait_for_timeout(2000)
         
         # Find and select from dropdown
@@ -88,37 +78,24 @@ class PrescreeningPage:
         )
         print("✅ Selected Culture & team fit")
         
-        # Wait a moment for any animations
         await self.page.wait_for_timeout(1500)
-    
-        # Click the first enabled Continue button on the page
-        continue_btn = self.page.get_by_role(
-            "button",
-            name="Continue"
-        ).first
+
+        # Get all Continue buttons
+        continue_buttons = await self.page.get_by_role("button", name="Continue").all()
+        print(f"🔹 [select_job_fit] Found {len(continue_buttons)} Continue buttons")
         
-        # Wait for it to be enabled (not disabled)
-        await continue_btn.wait_for(state="visible", timeout=15000)
+        # Click the second one (index 1) - the one for this section
+        if len(continue_buttons) > 1:
+            await continue_buttons[1].click(force=True)
+        else:
+            await continue_buttons[0].click(force=True)
         
-        # Check if disabled and wait for it to become enabled
-        is_disabled = await continue_btn.get_attribute("disabled")
-        if is_disabled is not None:
-            # Wait for the button to become enabled
-            await self.page.wait_for_function(
-                """
-                () => {
-                    const btn = document.querySelector('button:has-text("Continue")');
-                    return btn && !btn.disabled;
-                }
-                """,
-                timeout=10000
-            )
-        
-        await continue_btn.click()
         print("✅ Continued first dropdown")
-    
+
     async def select_job_priority(self):
         """Select 'Brand name' from dropdown"""
+        print("🔹 [select_job_priority] Starting...")
+        
         await self.page.wait_for_timeout(2000)
         
         # Find and select from dropdown
@@ -132,31 +109,16 @@ class PrescreeningPage:
         )
         print("✅ Selected Brand name")
         
-        # Wait a moment for any animations
         await self.page.wait_for_timeout(1500)
-    
-        # Click the first enabled Continue button on the page
-        continue_btn = self.page.get_by_role(
-            "button",
-            name="Continue"
-        ).first
+
+        # Get all Continue buttons
+        continue_buttons = await self.page.get_by_role("button", name="Continue").all()
+        print(f"🔹 [select_job_priority] Found {len(continue_buttons)} Continue buttons")
         
-        # Wait for it to be enabled (not disabled)
-        await continue_btn.wait_for(state="visible", timeout=15000)
+        # Click the third one (index 2) - the one for this section
+        if len(continue_buttons) > 2:
+            await continue_buttons[2].click(force=True)
+        else:
+            await continue_buttons[-1].click(force=True)
         
-        # Check if disabled and wait for it to become enabled
-        is_disabled = await continue_btn.get_attribute("disabled")
-        if is_disabled is not None:
-            # Wait for the button to become enabled
-            await self.page.wait_for_function(
-                """
-                () => {
-                    const btn = document.querySelector('button:has-text("Continue")');
-                    return btn && !btn.disabled;
-                }
-                """,
-                timeout=10000
-            )
-        
-        await continue_btn.click()
         print("✅ Continued second dropdown")
