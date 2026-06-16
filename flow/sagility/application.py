@@ -219,10 +219,10 @@ async def send_discord_alert(step: StepResult, candidate_email: str = ""):
         "footer": {"text": f"Sagility Monitor • {ENVIRONMENT} • {ROLE_TYPE}"},
     }
 
-    # BUG FIX: embed["image"] must be set BEFORE json.dumps(payload)
+    # embed["image"] must reference the filename exactly as uploaded
     if attach_filename:
         embed["image"] = {"url": f"attachment://{attach_filename}"}
-        print(f"🔹 [DISCORD DEBUG] embed['image'] set to attachment://{attach_filename}")
+        print(f"🔹 [DISCORD DEBUG] embed['image'] = attachment://{attach_filename}")
 
     payload = {"embeds": [embed]}
     payload_json_str = json.dumps(payload)
@@ -233,12 +233,14 @@ async def send_discord_alert(step: StepResult, candidate_email: str = ""):
         """Runs in a thread via run_in_executor so it doesn't block the event loop."""
         if attach_filename:
             with open(step.screenshot, "rb") as f:
-                files_payload = {
-                    "payload_json": (None, payload_json_str, "application/json"),
-                    "file": (attach_filename, f, "image/png"),
-                }
+                # Discord requires: payload_json in data=, file in files= as "files[0]"
                 print(f"🔹 [DISCORD DEBUG] Sending multipart POST (with screenshot) to Discord...")
-                return requests.post(DISCORD_WEBHOOK, files=files_payload, timeout=20)
+                return requests.post(
+                    DISCORD_WEBHOOK,
+                    data={"payload_json": payload_json_str},
+                    files={"files[0]": (attach_filename, f, "image/png")},
+                    timeout=20,
+                )
         else:
             print(f"🔹 [DISCORD DEBUG] Sending JSON POST (no screenshot) to Discord...")
             return requests.post(
