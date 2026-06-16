@@ -124,6 +124,7 @@ SEVERITY = {
     "[ELEMENT_MISSING]":  ("🔍 Element Missing",    "high"),
     "[TIMEOUT]":          ("⏱ Timeout",            "high"),
     "[DUPLICATE_EMAIL]":  ("📛 Duplicate Candidate","critical"),
+    "[GLOBAL_FAILURE]":   ("💥 Global Failure",     "critical"),
 }
 
 def _discord_color(tag: str) -> int:
@@ -135,122 +136,84 @@ async def send_discord_alert(step: StepResult, candidate_email: str = ""):
         print(f"  ⚠️  DISCORD_WEBHOOK not set — skipping alert for {step.step_id}")
         return
 
-    label = SEVERITY.get(step.tag, (step.tag, "high"))[0]
+    # Determine if it's a success or failure
+    is_success = step.status == "PASS" or step.step_id == "SUCCESS"
+    
+    # Get the label for the tag
+    label = SEVERITY.get(step.tag, (step.tag, "high"))[0] if step.tag else "Unknown"
+    
     ts_human = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
 
+    # Build fields
     fields = [
-        {"name": "Step",            "value": f"`{step.step_id}` — {step.name}", "inline": False},
-        {"name": "Failure type",    "value": label or step.tag or "Unknown",    "inline": True},
-        {"name": "Timestamp",       "value": ts_human,                          "inline": True},
-        {"name": "Reason",          "value": step.reason[:300] or "—",         "inline": False},
+        {"name": "Step", "value": f"`{step.step_id}` — {step.name}", "inline": False},
+        {"name": "Status", "value": step.status, "inline": True},
+        {"name": "Timestamp", "value": ts_human, "inline": True},
     ]
+    
+    if step.tag:
+        fields.append({"name": "Failure type", "value": label or step.tag, "inline": True})
+    
+    if step.reason:
+        fields.append({"name": "Reason", "value": step.reason[:300] or "—", "inline": False})
+    
     if candidate_email:
         fields.append({"name": "Candidate email", "value": candidate_email, "inline": False})
+    
     if RUN_URL:
-        fields.append({ "name": "CI Run", "value": RUN_URL, "inline": False })
+        fields.append({"name": "CI Run", "value": RUN_URL, "inline": False})
+    
     if step.screenshot:
         fields.append({"name": "Screenshot", "value": f"`{step.screenshot}`", "inline": False})
 
-    is_success = step.step_id == "SUCCESS"
-    
+    # Build embed
     embed = {
         "title": (
             "✅ Sagility Monitor — SUCCESS"
             if is_success
             else f"🚨 Sagility Monitor — {step.step_id} FAILED"
         ),
-    
         "description": (
             "Production monitoring completed successfully."
             if is_success
             else f"**{label or step.tag}** detected during production flow monitoring."
         ),
-    
-        "color": (
-            5763719
-            if is_success
-            else _discord_color(step.tag)
-        ),
-    
+        "color": 5763719 if is_success else _discord_color(step.tag),
         "fields": fields,
-    
-        "footer": {
-            "text": f"Portal: {PORTAL_URL}"
-        },
+        "footer": {"text": f"Portal: {PORTAL_URL}"},
     }
  
-    payload = {
-        "embeds": [embed]
-    }
-    
+    payload = {"embeds": [embed]}
     files = {}
     
     print(f"🔹 step.screenshot = {step.screenshot}")
     
-    if step.screenshot:
-        print(
-            f"🔹 Screenshot exists? "
-            f"{os.path.exists(step.screenshot)}"
-        )
-        
+    # Attach screenshot if it exists
     if step.screenshot and os.path.exists(step.screenshot):
-
         print(f"🔹 Attaching screenshot: {step.screenshot}")
-
         files["file"] = open(step.screenshot, "rb")
-
         embed["image"] = {
             "url": "attachment://" + os.path.basename(step.screenshot)
         }
         print("✅ Screenshot attached to Discord payload")
-        
-    try:
     
+    try:
         response = requests.post(
             DISCORD_WEBHOOK,
-            data={
-                "payload_json": json.dumps(payload)
-            },
+            data={"payload_json": json.dumps(payload)},
             files=files if files else None,
             timeout=15
         )
     
         if response.status_code in [200, 204]:
-    
-            print(
-                f"📣 Discord alert sent for {step.step_id}"
-            )
-    
+            print(f"📣 Discord alert sent for {step.step_id}")
         else:
-    
-            print(
-                f"⚠️ Discord alert failed: "
-                f"{response.status_code} {response.text}"
-            )
+            print(f"⚠️ Discord alert failed: {response.status_code} {response.text}")
     
     except Exception as e:
-        print(f"❌ PRE-SCREENING FAILURE: {e}")
-        
-        failure_screenshot = await screenshot(
-            page,
-            "PRESCREENING_FAILURE"
-        )
-        
-        try:
-            await send_discord_alert(
-                title="❌ Sagility Automation Failed",
-                message=str(e),
-                screenshot=failure_screenshot
-            )
-        except Exception as discord_error:
-            print(
-                f"❌ Discord notification failed: {discord_error}"
-            )
-        
-        raise
+        print(f"❌ Discord send error: {e}")
     
     finally:
-    
         if files:
             files["file"].close()
 
@@ -1010,21 +973,6 @@ async def run_monitor():
                     return None
                 return await coro_factory()
 
-            async def _run_stage_or_fail(coro_factory, stage_name: str):
-                """Run a stage and raise exception if it fails."""
-                result = await coro_factory()
-                if result:
-                    _add(result)
-                    # If it's a single StepResult and it failed, raise exception
-                    if isinstance(result, StepResult) and result.status == "FAIL":
-                        raise Exception(f"{stage_name} FAILED: {result.reason}")
-                    # If it's a list, check if any failed
-                    if isinstance(result, list):
-                        for r in result:
-                            if r.status == "FAIL":
-                                raise Exception(f"{stage_name} FAILED: {r.reason}")
-                return result
-
             # ── Execute all stages ─────────────────────────────────────────────────
 
             print("── STAGE 1: Portal Launch")
@@ -1038,7 +986,6 @@ async def run_monitor():
                 lambda: stage2_consent(portal_page, candidate_email), "STAGE_2")
             if r:
                 _add(r)
-                # Check if any step in the list failed
                 if isinstance(r, list):
                     for step in r:
                         if step.status == "FAIL":
@@ -1180,23 +1127,26 @@ async def run_monitor():
         except Exception as ss_error:
             print(f"❌ Screenshot failed: {ss_error}")
 
+        # Create StepResult for global failure
+        global_failure = StepResult(
+            "GLOBAL_FAILURE",
+            "Global workflow failure"
+        )
+        global_failure.status = "FAIL"
+        global_failure.tag = "[GLOBAL_FAILURE]"
+        global_failure.reason = str(e)[:500]
+        global_failure.screenshot = failure_screenshot
+
         # Send Discord alert on failure
         try:
-            # Create a StepResult for the global failure
-            global_failure = StepResult(
-                "GLOBAL_FAILURE",
-                f"Global workflow failure"
-            )
-            global_failure.status = "FAIL"
-            global_failure.tag = "[GLOBAL_FAILURE]"
-            global_failure.reason = str(e)[:500]
-            global_failure.screenshot = failure_screenshot
-            
-            await send_discord_alert(
-                global_failure,
-                candidate_email
-            )
-            print("✅ Discord failure alert sent")
+            if DISCORD_WEBHOOK:
+                await send_discord_alert(
+                    global_failure,
+                    candidate_email
+                )
+                print("✅ Discord failure alert sent")
+            else:
+                print("⚠️ DISCORD_WEBHOOK not set — skipping Discord alert")
         except Exception as discord_error:
             print(f"❌ Discord failed: {discord_error}")
 
