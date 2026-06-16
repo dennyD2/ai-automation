@@ -109,26 +109,28 @@ class PrescreeningPage:
         
     async def select_job_priority(self):
         """Select 'Brand name' from dropdown"""
-        # Wait for the question to appear
         await self.page.wait_for_timeout(2000)
         
-        section = self.page.locator(
+        # Find the dropdown using a more flexible approach
+        # Look for the select element near the question text
+        dropdown = self.page.locator(
             "text=What matters most to you when choosing a job?"
-        ).locator("xpath=..")
-
-        dropdown = section.locator("select")
-
+        ).locator("xpath=..").locator("select")
+        
         await dropdown.wait_for()
-
         await dropdown.select_option(
             label="Brand name"
         )
-
         print("✅ Selected Brand name")
-
-        await section.get_by_role(
+    
+        # Click Continue button - use page-level selector
+        # The Continue button is outside the question section
+        continue_btn = self.page.get_by_role(
             "button",
             name="Continue"
-        ).click()
-
+        ).first
+        
+        # Wait for the button to be visible and clickable
+        await continue_btn.wait_for(state="visible", timeout=15000)
+        await continue_btn.click()
         print("✅ Continued second dropdown")
