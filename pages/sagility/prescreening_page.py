@@ -74,30 +74,32 @@ class PrescreeningPage:
         """Select 'Culture & team fit' from dropdown"""
         print("🔹 [select_job_fit] Waiting for dropdown...")
         
-        await self.page.wait_for_timeout(2000)
+        await self.page.wait_for_timeout(3000)
         
-        # The select element itself has the ID
-        dropdown = self.page.locator(
-            "//select[@id='pre-screening-next-role-motivation']"
-        )
-        
-        await dropdown.wait_for(state="visible", timeout=15000)
-        await dropdown.select_option(
-            label="Culture & team fit"
-        )
-        print("✅ Selected Culture & team fit")
+        try:
+            # Try native select first
+            dropdown = self.page.locator("select.billi-inline-form-input")
+            await dropdown.wait_for(state="visible", timeout=5000)
+            await dropdown.select_option(label="Culture & team fit")
+            print("✅ Selected Culture & team fit (native select)")
+        except:
+            # If native select fails, try clicking on the custom dropdown
+            print("🔹 Native select not found, trying custom dropdown...")
+            dropdown_trigger = self.page.get_by_text("Select an option")
+            await dropdown_trigger.first.click()
+            await self.page.wait_for_timeout(1000)
+            
+            option = self.page.get_by_text("Culture & team fit")
+            await option.click()
+            print("✅ Selected Culture & team fit (custom dropdown)")
         
         await self.page.wait_for_timeout(1000)
-
-        # Find the Continue button
-        continue_btn = self.page.locator(
-            "//button[contains(text(), 'Continue')]"
-        ).last
-        
-        await continue_btn.wait_for(state="visible", timeout=15000)
-        await continue_btn.click()
+    
+        # Click Continue button
+        continue_btn = self.page.get_by_text("Continue")
+        await continue_btn.last.click()
         print("✅ Continued first dropdown")
-
+    
     async def select_job_priority(self):
         """Select 'Work-life balance' from dropdown"""
         print("🔹 [select_job_priority] Waiting for dropdown...")
