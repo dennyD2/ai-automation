@@ -8,6 +8,7 @@ async def run_prescreening(page: Page):
 
         prescreening = PrescreeningPage(page)
 
+        # Wait for pre-screening content to load
         await page.get_by_text(
             re.compile(
                 "before we move forward",
@@ -17,17 +18,28 @@ async def run_prescreening(page: Page):
 
         print("✅ Pre-screening content detected")
 
-        # Knockout Questions
+        # ── First Section: Student + Termination Questions ──────────────────
         await prescreening.answer_student_question()
         await prescreening.answer_termination_question()
-        await prescreening.answer_criminal_question()
-        await prescreening.submit_knockout_questions()
+        await prescreening.submit_first_section()
+        
+        print("✅ First section completed (Student + Termination)")
 
-        # Dropdown Questions
+        # ── Second Section: Criminal Question ──────────────────────────────
+        await prescreening.answer_criminal_question()
+        await prescreening.submit_criminal_section()
+        
+        print("✅ Second section completed (Criminal)")
+
+        # ── Third Section: Job Fit Dropdown ────────────────────────────────
         await prescreening.select_job_fit()
-        await prescreening.continue_job_fit()
+        
+        print("✅ Third section completed (Job Fit)")
+
+        # ── Fourth Section: Job Priority Dropdown ──────────────────────────
         await prescreening.select_job_priority()
-        await prescreening.continue_job_priority()
+        
+        print("✅ Fourth section completed (Job Priority)")
 
         print("🔹 Waiting for transition to next stage")
 
