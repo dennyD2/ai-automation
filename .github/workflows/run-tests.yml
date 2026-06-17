@@ -41,7 +41,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     timeout-minutes: 45
     env:
       ENVIRONMENT: ${{ github.event.inputs.environment || 'QA' }}
