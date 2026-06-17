@@ -71,3 +71,7 @@ async def run_prescreening(page: Page):
             print("✅ Assessment page detected via button")
         
         print("✅ Assessment stage reached")
+
+    except Exception as e:
+        print(f"❌ PRE-SCREENING ERROR: {e}")
+        raise
