@@ -93,6 +93,8 @@ jobs:
       - name: Run Automation                    
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          PYTHONIOENCODING: utf-8  
+          PYTHONUTF8: 1           
           HEADLESS: ${{ github.event.inputs.headless }}
         run: |
           python -m flow.${{ github.event.inputs.company || 'sagility' }}.application
