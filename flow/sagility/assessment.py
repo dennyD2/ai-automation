@@ -6,7 +6,7 @@ async def run_assessment(page: Page):
     try:
         print("\n===== ASSESSMENT STAGE =====")
 
-        print("🔹 Waiting for assessment page...")
+        print("🔹 Waiting for assessment page to load...")
         
         # Wait for the page to load
         await page.wait_for_timeout(5000)
@@ -14,39 +14,50 @@ async def run_assessment(page: Page):
         # Take a screenshot for debugging
         await screenshot(page, "ASSESSMENT_PAGE_LOADED")
         
-        # Check for the assessment text
+        # Check page content
         body = await page.evaluate("() => document.body.innerText")
-        print(f"🔹 Page content (first 500 chars):")
+        print(f"🔹 Assessment page content (first 500 chars):")
         print(body[:500] if body else "EMPTY")
         
-        # Wait for assessment content
-        await page.get_by_text(
-            re.compile(
-                "assessment|next stage|start",
-                re.I
-            )
-        ).wait_for(timeout=15000)
-        print("✅ Assessment page detected")
+        # Wait for assessment content - use .first to avoid strict mode violation
+        try:
+            await page.get_by_text(
+                re.compile(r"assessment|start|skip", re.IGNORECASE)
+            ).first.wait_for(state="visible", timeout=30000)
+            print("✅ Assessment page detected")
+        except:
+            # If text not found, wait for any button
+            await page.locator("button").first.wait_for(state="visible", timeout=15000)
+            print("✅ Assessment page detected via button")
 
-        # Click Skip Assessment
-        print("🔹 Clicking Skip Assessment (testing only)...")
+        # Click Skip Assessment (testing only)
+        print("🔹 Clicking Skip Assessment...")
         
-        # Find the Skip Assessment button
-        # Based on the image, it's the button with "Skip Assessment"
-        skip_btn = page.get_by_role(
-            "button",
-            name=re.compile("skip assessment", re.I)
-        )
-        
-        # If not found, try by text
-        if await skip_btn.count() == 0:
-            skip_btn = page.get_by_text(re.compile("skip assessment", re.I))
-        
-        await skip_btn.click(timeout=5000)
-        print("✅ Skip Assessment clicked")
-        
+        # Try multiple ways to find and click Skip Assessment
+        try:
+            # Try by role
+            skip_btn = page.get_by_role(
+                "button",
+                name=re.compile(r"skip assessment", re.IGNORECASE)
+            )
+            await skip_btn.click(timeout=5000)
+            print("✅ Skip Assessment clicked (by role)")
+        except:
+            try:
+                # Try by text - use .first
+                skip_btn = page.get_by_text(
+                    re.compile(r"skip assessment", re.IGNORECASE)
+                ).first
+                await skip_btn.click(timeout=5000)
+                print("✅ Skip Assessment clicked (by text)")
+            except:
+                # Try by class
+                skip_btn = page.locator("button.billi-action-button").nth(1)
+                await skip_btn.click(timeout=5000)
+                print("✅ Skip Assessment clicked (by class)")
+
         # Wait for the next page
-        print("🔹 Waiting for next stage...")
+        print("🔹 Waiting for transition after assessment...")
         await page.wait_for_timeout(5000)
         print("✅ Assessment stage completed")
         
