@@ -14,7 +14,7 @@ on:
       environment:
         description: 'Environment'
         required: true
-        default: 'QA'
+        default: 'DEV'
         type: choice
         options:
           - QA
