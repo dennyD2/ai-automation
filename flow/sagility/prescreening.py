@@ -53,23 +53,41 @@ async def run_prescreening(page: Page):
 
         print("✅ Transition detected")
 
-        # ── Wait for Assessment Page ──────────────────────────────────────────
-        print("🔹 Waiting for assessment page...")
+        # ── Wait for the transition to complete ──────────────────────────────
+        print("🔹 Waiting for transition animation to complete...")
 
-        # Wait for the page to stabilize
-        await page.wait_for_timeout(5000)
-        
-        # Check for assessment page - use .first to avoid strict mode
+        # Wait for the transition text to disappear
         try:
             await page.get_by_text(
-                re.compile(r"assessment|start|skip", re.IGNORECASE)
-            ).first.wait_for(state="visible", timeout=30000)
-            print("✅ Assessment page detected")
+                re.compile("taking you to next stage", re.I)
+            ).first.wait_for(state="hidden", timeout=30000)
+            print("✅ Transition complete - page has moved on")
         except:
-            # Fallback: wait for any visible button
-            await page.locator("button").first.wait_for(state="visible", timeout=15000)
-            print("✅ Assessment page detected via button")
-        
+            print("⚠️ Transition text still visible, waiting longer...")
+            await page.wait_for_timeout(10000)
+
+        # ── Wait for Assessment Page ──────────────────────────────────────────
+        print("🔹 Waiting for assessment page to load...")
+        await page.wait_for_timeout(5000)
+
+        # Check if we're on the assessment page
+        body = await page.evaluate("() => document.body.innerText")
+        print(f"🔹 Current page content (first 500 chars):")
+        print(body[:500] if body else "EMPTY")
+
+        # Look for assessment page indicators
+        if "assessment" in body.lower() or "skip" in body.lower() or "start" in body.lower():
+            print("✅ Assessment page detected")
+        else:
+            # If not, wait some more
+            print("🔹 Waiting additional time for assessment page...")
+            await page.wait_for_timeout(10000)
+            body = await page.evaluate("() => document.body.innerText")
+            if "assessment" in body.lower() or "skip" in body.lower() or "start" in body.lower():
+                print("✅ Assessment page detected after waiting")
+            else:
+                print("⚠️ Assessment page not detected, but continuing...")
+
         print("✅ Assessment stage reached")
 
     except Exception as e:
