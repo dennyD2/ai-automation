@@ -51,14 +51,26 @@ async def run_assessment(page: Page):
                 await skip_btn.click(timeout=5000)
                 print("✅ Skip Assessment clicked (by text)")
             except:
-                # Try by class
-                skip_btn = page.locator("button.billi-action-button").nth(1)
-                await skip_btn.click(timeout=5000)
-                print("✅ Skip Assessment clicked (by class)")
+                try:
+                    # Try by class (second button)
+                    skip_btn = page.locator("button.billi-action-button").nth(1)
+                    await skip_btn.click(timeout=5000)
+                    print("✅ Skip Assessment clicked (by class)")
+                except:
+                    # Fallback: click any button with "Skip" text
+                    skip_btn = page.locator("button:has-text('Skip')")
+                    await skip_btn.click(timeout=5000)
+                    print("✅ Skip Assessment clicked (by contains)")
 
         # Wait for the next page
         print("🔹 Waiting for transition after assessment...")
         await page.wait_for_timeout(5000)
+        
+        # Check the next page
+        body = await page.evaluate("() => document.body.innerText")
+        print(f"🔹 After assessment page content (first 500 chars):")
+        print(body[:500] if body else "EMPTY")
+        
         print("✅ Assessment stage completed")
         
     except Exception as e:
