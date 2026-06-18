@@ -44,7 +44,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 45
     env:
-      ENVIRONMENT: ${{ github.event.inputs.environment || 'QA' }}
+      ENVIRONMENT: ${{ github.event.inputs.environment || 'DEV' }}
       HEADLESS: ${{ github.event.inputs.headless || 'true' }}
       COMPANY: ${{ github.event.inputs.company || 'sagility' }}
       ROLE_TYPE: ${{ github.event.inputs.role_type || 'voice' }}
